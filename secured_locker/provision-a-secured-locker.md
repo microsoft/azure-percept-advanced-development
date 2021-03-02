@@ -136,6 +136,7 @@ If [Python](https://www.python.org/) is not already installed, then use the Dev 
    ```
 
 ## Step 5: Try out samples
+After successfully provisioning Azure Percept MM services, try a sample:
 
 [Python app for model protection](https://github.com/microsoft/azure-percept-advanced-development/tree/main/secured_locker/python-program)
 
