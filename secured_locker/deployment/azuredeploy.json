@@ -1,0 +1,525 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "location": {
+            "defaultValue": "westus2",
+            "type": "string"
+        },
+        "locker_prefix": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "vault_name": "[concat(parameters('locker_prefix'), '-kv')]",
+        "public_ip_name": "[concat(parameters('locker_prefix'), '-ip')]",
+        "domain_label": "[parameters('locker_prefix')]",
+        "vnet_name": "[concat(parameters('locker_prefix'), '-vnet')]",
+        "storage_account": "[concat(replace(parameters('locker_prefix'), '-', ''), 'models')]",
+        "network_profile": "[concat(parameters('locker_prefix'), '-profile')]",
+        "container_group": "[concat(parameters('locker_prefix'), '-cg')]",
+        "gateway_name": "[concat(parameters('locker_prefix'), '-gateway')]",
+        "msi_name": "[concat(parameters('locker_prefix'), '-msi')]",
+        "secret_obj": "tokenholder$123",
+        "identityID": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('msi_name'))]",
+        "Contributor": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+        "StorageBlobDataContributor": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.KeyVault/vaults",
+            "apiVersion": "2016-10-01",
+            "name": "[variables('vault_name')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "accessPolicies": [
+                    {
+                        "tenantId": "[reference(variables('identityID')).tenantId]",
+                        "objectId": "[reference(variables('identityID')).principalId]",
+                        "permissions": {
+                            "keys": [
+                                "get",
+                                "create",
+                                "delete",
+                                "list",
+                                "update",
+                                "import",
+                                "backup",
+                                "restore",
+                                "recover"
+                            ],
+                            "secrets": [
+                                "get",
+                                "list",
+                                "set",
+                                "delete",
+                                "backup",
+                                "restore",
+                                "recover"
+                            ],
+                            "certificates": [
+                                "get",
+                                "delete",
+                                "list",
+                                "create",
+                                "import",
+                                "update",
+                                "deleteissuers",
+                                "getissuers",
+                                "listissuers",
+                                "managecontacts",
+                                "manageissuers",
+                                "setissuers",
+                                "recover",
+                                "backup",
+                                "restore"
+                            ],
+                            "storage": [
+                                "delete",
+                                "deletesas",
+                                "get",
+                                "getsas",
+                                "list",
+                                "listsas",
+                                "regeneratekey",
+                                "set",
+                                "setsas",
+                                "update",
+                                "recover",
+                                "backup",
+                                "restore"
+                            ]
+                        }
+                    }
+                ],
+                "sku": {
+                    "family": "A",
+                    "name": "standard"
+                },
+                "tenantId": "[subscription().tenantId]",
+                "enabledForDeployment": false,
+                "enabledForDiskEncryption": false,
+                "enabledForTemplateDeployment": false,
+                "enableSoftDelete": true
+            }
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "apiVersion": "2016-10-01",
+            "name": "[concat(variables('vault_name'), '/scz-secret-key')]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', variables('vault_name'))]"
+            ],
+            "properties": {
+                "attributes": {
+                    "enabled": true
+                },
+                "value": "[variables('secret_obj')]"
+            }
+        },
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2020-05-01",
+            "name": "[variables('public_ip_name')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "Standard"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "Static",
+                "dnsSettings": {
+                    "domainNameLabel": "[variables('domain_label')]"
+                },
+                "ipTags": []
+            },
+            "tags": {
+                "SantaCruzVault": "true",
+                "FQDN": "[concat(variables('domain_label'),'.', parameters('location'), '.cloudapp.azure.com')]"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2020-05-01",
+            "name": "[variables('vnet_name')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "10.0.0.0/16"
+                    ]
+                },
+                "dhcpOptions": {
+                    "dnsServers": []
+                },
+                "subnets": [
+                    {
+                        "name": "gateway-subnet",
+                        "properties": {
+                            "addressPrefix": "10.0.2.0/24",
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Enabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        }
+                    },
+                    {
+                        "name": "scz-subnet",
+                        "properties": {
+                            "addressPrefix": "10.0.1.0/24",
+                            "delegations": [
+                                {
+                                    "name": "Microsoft.ContainerInstance/containerGroups",
+                                    "properties": {
+                                        "serviceName": "Microsoft.ContainerInstance/containerGroups"
+                                    }
+                                }
+                            ],
+                            "privateEndpointNetworkPolicies": "Enabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        }
+                    }
+                ],
+                "virtualNetworkPeerings": [],
+                "enableDdosProtection": false,
+                "enableVmProtection": false
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2019-06-01",
+            "name": "[variables('storage_account')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "Standard_RAGRS",
+                "tier": "Standard"
+            },
+            "kind": "StorageV2",
+            "properties": {
+                "networkAcls": {
+                    "bypass": "AzureServices",
+                    "virtualNetworkRules": [],
+                    "ipRules": [],
+                    "defaultAction": "Allow"
+                },
+                "supportsHttpsTrafficOnly": true,
+                "encryption": {
+                    "services": {
+                        "file": {
+                            "keyType": "Account",
+                            "enabled": true
+                        },
+                        "blob": {
+                            "keyType": "Account",
+                            "enabled": true
+                        }
+                    },
+                    "keySource": "Microsoft.Storage"
+                },
+                "accessTier": "Hot"
+            },
+            "resources": [
+                {
+                    "type": "blobServices/containers",
+                    "apiVersion": "2019-06-01",
+                    "name": "default/models",
+                    "dependsOn": [
+                        "[variables('storage_account')]"
+                    ]
+                },
+                {
+                    "type": "blobServices/containers",
+                    "apiVersion": "2019-06-01",
+                    "name": "default/data",
+                    "dependsOn": [
+                        "[variables('storage_account')]"
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/providers/roleAssignments",
+            "apiVersion": "2018-09-01-preview",
+            "name": "[concat(variables('storage_account'), '/Microsoft.Authorization/', guid(concat(resourceGroup().id, '/ba92f5b4-2d11-453d-a403-e96b0029c9fe/models/', '5c9e43e2-5298-481b-a39e-5b58dbcb92b4')))]",
+            "dependsOn": [
+                "[variables('storage_account')]"
+            ],
+            "properties": {
+                "roleDefinitionId": "[variables('StorageBlobDataContributor')]",
+                "principalId": "[reference(variables('identityID')).principalId]",
+                "principalType": "ServicePrincipal"
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/providers/roleAssignments",
+            "apiVersion": "2018-09-01-preview",
+            "name": "[concat(variables('storage_account'), '/Microsoft.Authorization/', guid(uniqueString(variables('storage_account'))))]",
+            "dependsOn": [
+                "[variables('storage_account')]"
+            ],
+            "properties": {
+                "roleDefinitionId": "[variables('Contributor')]",
+                "principalId": "[reference(variables('identityID')).principalId]",
+                "principalType": "ServicePrincipal"
+            }
+        },
+        {
+            "type": "Microsoft.ContainerInstance/containerGroups",
+            "apiVersion": "2019-12-01",
+            "name": "[variables('container_group')]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkProfiles', variables('network_profile'))]"
+            ],
+            "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                    "[variables('identityID')]": {}
+                }
+            },
+            "properties": {
+                "sku": "Standard",
+                "containers": [
+                    {
+                        "name": "[variables('container_group')]",
+                        "properties": {
+                            "image": "mcr.microsoft.com/azureedgedevices/azureperceptservicesmodule:preview",
+                            "ports": [
+                                {
+                                    "protocol": "TCP",
+                                    "port": 5000
+                                }
+                            ],
+                            "environmentVariables": [
+                                {
+                                    "name": "KEY_VAULT_NAME",
+                                    "value": "[variables('vault_name')]"
+                                },
+                                {
+                                    "name": "STORAGE_ACCOUNT",
+                                    "value": "[variables('storage_account')]"
+                                },
+                                {
+                                    "name": "AZURE_CLIENT_ID",
+                                    "value": "[reference(variables('identityID')).clientId]"
+                                }
+                            ],
+                            "resources": {
+                                "requests": {
+                                    "memoryInGB": 1,
+                                    "cpu": 1
+                                }
+                            }
+                        }
+                    }
+                ],
+                "initContainers": [],
+                "restartPolicy": "Always",
+                "ipAddress": {
+                    "type": "Public",
+                    "ports": [
+                        {
+                            "protocol": "TCP",
+                            "port": 5000
+                        }
+                    ]
+                },
+                "osType": "Linux"
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkProfiles",
+            "apiVersion": "2020-05-01",
+            "name": "[variables('network_profile')]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnet_name'), 'scz-subnet')]"
+            ],
+            "properties": {
+                "containerNetworkInterfaceConfigurations": [
+                    {
+                        "name": "eth0",
+                        "properties": {
+                            "ipConfigurations": [
+                                {
+                                    "name": "ipconfigprofile",
+                                    "properties": {
+                                        "subnet": {
+                                            "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnet_name'), 'scz-subnet')]"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2020-05-01",
+            "name": "[concat(variables('vnet_name'), '/gateway-subnet')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('vnet_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "10.0.2.0/24",
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Enabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2020-05-01",
+            "name": "[concat(variables('vnet_name'), '/scz-subnet')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('vnet_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "10.0.1.0/24",
+                "delegations": [
+                    {
+                        "name": "Microsoft.ContainerInstance/containerGroups",
+                        "properties": {
+                            "serviceName": "Microsoft.ContainerInstance/containerGroups"
+                        }
+                    }
+                ],
+                "privateEndpointNetworkPolicies": "Enabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+            "apiVersion": "2018-11-30",
+            "name": "[variables('msi_name')]",
+            "location": "[parameters('location')]"
+        },
+        {
+            "type": "Microsoft.Network/applicationGateways",
+            "apiVersion": "2020-05-01",
+            "name": "[variables('gateway_name')]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnet_name'), 'gateway-subnet')]",
+                "[resourceId('Microsoft.Network/publicIPAddresses', variables('public_ip_name'))]"
+            ],
+            "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                    "[variables('identityID')]": {
+                    }
+                }
+            },
+            "properties": {
+                "sku": {
+                    "name": "Standard_v2",
+                    "tier": "Standard_v2",
+                    "capacity": 2
+                },
+                "gatewayIPConfigurations": [
+                    {
+                        "name": "appGatewayFrontendIP",
+                        "properties": {
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnet_name'), 'gateway-subnet')]"
+                            }
+                        }
+                    }
+                ],
+                "trustedRootCertificates": [],
+                "frontendIPConfigurations": [
+                    {
+                        "name": "appGatewayFrontendIP",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('public_ip_name'))]"
+                            }
+                        }
+                    }
+                ],
+                "frontendPorts": [
+                    {
+                        "name": "appGatewayFrontendPort",
+                        "properties": {
+                            "port": 5000
+                        }
+                    }
+                ],
+                "backendAddressPools": [
+                    {
+                        "name": "appGatewayBackendPool",
+                        "properties": {
+                            "backendAddresses": [
+                                {
+                                    "ipAddress": "[reference(resourceId('Microsoft.ContainerInstance/containerGroups/', variables('container_group'))).ipAddress.ip]"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "backendHttpSettingsCollection": [
+                    {
+                        "name": "appGatewayBackendHttpSettings",
+                        "properties": {
+                            "port": 5000,
+                            "protocol": "Http",
+                            "cookieBasedAffinity": "Disabled",
+                            "connectionDraining": {
+                                "enabled": false,
+                                "drainTimeoutInSec": 1
+                            },
+                            "pickHostNameFromBackendAddress": false,
+                            "requestTimeout": 30
+                        }
+                    }
+                ],
+                "httpListeners": [
+                    {
+                        "name": "appGatewayHttpListener",
+                        "properties": {
+                            "frontendIPConfiguration": {
+                                "id": "[concat(resourceId('Microsoft.Network/applicationGateways', variables('gateway_name')), '/frontendIPConfigurations/appGatewayFrontendIP')]"
+                            },
+                            "frontendPort": {
+                                "id": "[concat(resourceId('Microsoft.Network/applicationGateways', variables('gateway_name')), '/frontendPorts/appGatewayFrontendPort')]"
+                            },
+                            "protocol": "Http",
+                            "hostNames": [],
+                            "requireServerNameIndication": false
+                        }
+                    }
+                ],
+                "urlPathMaps": [],
+                "requestRoutingRules": [
+                    {
+                        "name": "rule1",
+                        "properties": {
+                            "ruleType": "Basic",
+                            "httpListener": {
+                                "id": "[concat(resourceId('Microsoft.Network/applicationGateways', variables('gateway_name')), '/httpListeners/appGatewayHttpListener')]"
+                            },
+                            "backendAddressPool": {
+                                "id": "[concat(resourceId('Microsoft.Network/applicationGateways', variables('gateway_name')), '/backendAddressPools/appGatewayBackendPool')]"
+                            },
+                            "backendHttpSettings": {
+                                "id": "[concat(resourceId('Microsoft.Network/applicationGateways', variables('gateway_name')), '/backendHttpSettingsCollection/appGatewayBackendHttpSettings')]"
+                            }
+                        }
+                    }
+                ],
+                "probes": [],
+                "rewriteRuleSets": [],
+                "redirectConfigurations": [],
+                "privateLinkConfigurations": []
+            }
+        }
+    ],
+    "outputs": {
+        "serviceEndpoint": {
+            "type": "string",
+            "value": "[concat('http://', variables('domain_label'), '.', parameters('location'), '.cloudapp.azure.com')]"
+        }
+    }
+}

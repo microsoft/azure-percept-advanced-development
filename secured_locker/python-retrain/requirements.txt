@@ -1,0 +1,4 @@
+opentelemetry-api == 0.15b0
+opentelemetry-sdk == 0.15b0
+opentelemetry-exporter-jaeger == 0.15b0
+opentelemetry-exporter-prometheus == 0.15b0

@@ -1,0 +1,18 @@
+# CentOS-AppStream.repo
+#
+# The mirror system uses the connecting IP address of the client and the
+# update status of each mirror to pick mirrors that are updated to and
+# geographically close to the client.  You should use this for CentOS updates
+# unless you are manually picking other mirrors.
+#
+# If the mirrorlist= does not work for you, as a fall back you can try the
+# remarked out baseurl= line instead.
+#
+#
+
+[AppStream]
+name=CentOS-8-AppStream $basearch
+baseurl=http://vault.centos.org/8.1.1911/AppStream/$basearch/os
+gpgcheck=0
+enabled=1
+sslverify=0
