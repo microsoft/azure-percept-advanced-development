@@ -8,13 +8,13 @@ so that we can better track who is using it and how, and so that you can have a 
 
 ## Table of Contents
 
-1. [Prerequisites](##Prerequisites)
-1. [Architecture](##Architecture)
-1. [Module Twin Values](##module-twin-values)
-1. [Code Flow](##code-flow)
-1. [Building](##Building)
-1. [Running](##Running)
-1. [Extending and Customizing](##extending-and-customizing)
+1. [Prerequisites](#some-prerequisites)
+1. [Architecture](#architecture)
+1. [Module Twin Values](#module-twin-values)
+1. [Code Flow](#code-flow)
+1. [Building](#building)
+1. [Running](#running)
+1. [Extending and Customizing](#extending-and-customizing)
 
 ## Some Prerequisites
 
