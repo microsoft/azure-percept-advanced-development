@@ -6,6 +6,16 @@ Although this device is in public preview, if you are using these advanced exper
 [registered for *private* preview](https://go.microsoft.com/fwlink/?linkid=2156349), please consider doing so before using this functionality
 so that we can better track who is using it and how, and so that you can have a say in the changes we make to these experiences.
 
+## Table of Contents
+
+1. [Prerequisites](##Prerequisites)
+1. [Architecture](##Architecture)
+1. [Module Twin Values](##module-twin-values)
+1. [Code Flow](##code-flow)
+1. [Building](##Building)
+1. [Running](##Running)
+1. [Extending and Customizing](##extending-and-customizing)
+
 ## Some Prerequisites
 
 If you want to build custom modules or to customize the current azureeyemodule, you will want to set up a development environment
