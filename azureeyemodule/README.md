@@ -129,13 +129,13 @@ These are the allowed values for this IoT Module's twin:
   per line. The model file in the .zip archive should be either a .xml file, in which case a .bin file with exactly the same name (other than the extension)
   should be present as well, as per the OpenVINO IR specification. If the model file is a .blob file, it should have been created using the particular OpenVINO
   that is supported for the device. Lastly, the file could be a .onnx file.
-* `SCZ_MODEL_NAME`: String. Secure AI model name.
-* `SCZ_MODEL_VERSION`: String. Secure AI model version.
-* `SCZ_MM_SERVER_URL`: String. Secure AI server URL.
+* `SCZ_MODEL_NAME`: String. Protected AI model name.
+* `SCZ_MODEL_VERSION`: String. Protected AI model version.
+* `SCZ_MM_SERVER_URL`: String. Protected AI server URL.
 * `DownloadSecuredModelFromMMServer`: Boolean. If this is false and `SecureAILifecycleEnabled` is true, we use `ModelZipUrl` for our
   model location. If `SecureAILifecycleEnabled` is false, we ignore this value, and if `SecureAILifecycleEnabled` is set to true, and this
   value is set to true, we assume that `SCZ_MM_SERVER_URL` is a valid model management server, and we try to get the model from there.
-* `SecureAILifecycleEnabled`: Boolean. Enables/disables Secure AI Lifecycle management. Note that the secure AI fields will
+* `SecureAILifecycleEnabled`: Boolean. Enables/disables Azure Percept Model Management. Note that the protect AI fields will
   ignore the `ModelZipUrl` value unless `DownloadSecuredModelFromMMServer` is set to false, in which case we assume that `ModelZipUrl` contains
   an encrypted model.zip.
 * `RawStream`: Boolean. Enables/disables streaming the raw camera feed.
@@ -180,8 +180,8 @@ A particularly hairy bit of logic occurs around the model update mechanism. The 
                                                         +--------+-----------+
                                                                  |
                       +----------------------------+ Y  +--------v-----------+   N    +-----------------------+
-                      | Start secured              <----+ Model is secured?  +-------->Start normal model     |
-                      | model download process     |    +--------------------+        |download process       |
+                      | Start protected           <-----+ Model is protected?+-------->  Start normal model   |
+                      | model download process     |    +--------------------+        |  download process     |
                       +------------+---------------+                                  +---------+-------------+
                                    |                                                            |
                                    |                                                            |
@@ -196,14 +196,14 @@ A particularly hairy bit of logic occurs around the model update mechanism. The 
              |                                              |                                   |
 +------------v---------------+                   +----------v------------+                      |
 | Download model package and |                   |Download model package |                      |
-| decrypt it with secure     |                   |from ModelZipUrl       |                      |
+| decrypt it with protected  |                   |from ModelZipUrl       |                      |
 | AI lifecycle APIs          |                   +----------+------------+                      |
 +------------+---------------+                              |                                   |
              |                                              |                                   |
              |                                   +----------v-------------+                     |
              |                                   |Decrypt model package   |                     |
-             |                                   |with secure AI lifecycle|                     |
-             |                                   |APIs                    |                     |
+             |                                   |with Azure Percept      |                     |
+             |                                   |MM SDK APIs             |                     |
              |                                   +----------+-------------+                     |
              |                                              |                                   |
              |                                              |                                   |
