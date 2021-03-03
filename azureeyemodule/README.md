@@ -56,7 +56,7 @@ See the section on Module Twin Values below.
 
 The Workload enables several features that end-users can take advantage of:
 
-* A no-code solution for common computer vision use cases, such as face detection, object classification, common object detection, etc.
+* A no-code solution for common computer vision use cases, such as object classification, common object detection, etc.
 * An advanced solution, where a developer can bring their own (potentially cascaded) trained model to the device and run it, possibly passing results
   to another IoT module of their own creation running on the device.
 * A retraining loop for grabbing images from the device periodically, retraining the model in the cloud, and then pushing the newly trained model
