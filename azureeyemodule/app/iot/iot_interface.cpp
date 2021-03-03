@@ -147,47 +147,66 @@ static inline std::unordered_map<std::string, std::string> parse_onvif_message(c
     // This naive format works for something as simple as this for now, but we should really consider
     // using a better serialization/deserialization mechanism.
 
-    const std::string delimiters = "-_";
+    const std::string delimiter1 = "-"; // the delimiter to seperate different feature
+    const std::string delimiter2 = "_"; // the delimiter to deperate different parameters for each feature
     std::string dup = std::string(msg);
 
     // Tokenize the string into a vector of strings
     std::vector<std::string> tokens_and_values;
     size_t pos = 0;
-    while ((pos = dup.find_first_of(delimiters)) != std::string::npos)
+    while ((pos = dup.find_first_of(delimiter1)) != std::string::npos)
     {
         std::string part = dup.substr(0, pos);
+	printf("- parsed : %s \n", part.c_str());
         if (part.length() > 0)
         {
-            tokens_and_values.push_back(part);
+            tokens_and_values.push_back(part+"_");
         }
         dup.erase(0, pos + 1);
     }
 
     // There should be one more part at the end
-    tokens_and_values.push_back(dup);
+    tokens_and_values.push_back(dup+"_");
 
     // Now go through the vector of strings and convert it into a map
-    std::string curtok;
+
     std::unordered_map<std::string, std::string> result;
     for (size_t i = 0; i < tokens_and_values.size(); i++)
     {
-        if ((i % 2) == 0)
-        {
-            curtok = tokens_and_values.at(i);
-        }
-        else
-        {
-            result[curtok] = tokens_and_values.at(i);
-        }
+    	std::string curtok;
+	int count = 0;
+	printf("the one token and value: %s \n", tokens_and_values[i].c_str());
+	pos = 0;
+    	while ((pos = tokens_and_values[i].find_first_of(delimiter2)) != std::string::npos)
+    	{
+            std::string part = tokens_and_values[i].substr(0, pos);
+	    printf("_%s", part.c_str());
+       	    if (part.length() > 0)
+            {
+                switch (count) 
+		{
+		    case(0):
+			curtok = part;
+			break;
+		    case(1):
+			result[curtok] = part;
+			break;
+		    case(2):
+			// the only feature by far take in two parameters is snapshot
+			if (curtok != "snapshot") 
+			{
+			    util::log_error("Malformed ONVIF control message: " +msg);
+			}
+			result[curtok] = result[curtok] + "/" + part;
+			break;
+		    default:
+			util::log_error("Malformed ONVIF control message: " +msg);
+		}
+            }
+            tokens_and_values[i].erase(0, pos + 1);
+	    count += 1;
+    	}
     }
-
-    // If there are not an even number of items in the vector, the message was malformed.
-    if ((tokens_and_values.size() % 2) != 0)
-    {
-        util::log_error("Malformed ONVIF control message. Will try to work with it: " + msg);
-        result[curtok] = std::string("");
-    }
-
     return result;
 }
 
@@ -200,6 +219,17 @@ static IOTHUBMESSAGE_DISPOSITION_RESULT receive_onvif_message(IOTHUB_MESSAGE_HAN
     auto deserialized_msg = parse_onvif_message(msg);
 
     // Set stuff based on results
+    if (deserialized_msg.find(std::string("snapshot")) != deserialized_msg.end())
+    {
+        const auto uri = deserialized_msg[std::string("snapshot")];
+	std::string cmd = "gst-launch-1.0 rtspsrc location=\"rtsp://localhost:" + uri + "\" is_live=true ! decodebin ! jpegenc snapshot=TRUE ! filesink location=/snapshot/snapshot.jpg";
+	if (system(cmd.c_str()) < 0)
+	{
+            util::log_error("couldn't take a snapshot of the rtsp stream at  rtsp://localhost:" + uri);
+            return IOTHUBMESSAGE_REJECTED;
+	}
+    }
+
     if (deserialized_msg.find(std::string("fps")) != deserialized_msg.end())
     {
         const auto value = deserialized_msg[std::string("fps")];
