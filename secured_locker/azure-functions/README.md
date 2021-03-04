@@ -22,10 +22,11 @@ To run the sample, you need:
 * Language : Python
 * Python interpreter: Python 3.6.x, 3.7.x 3.8.x are supported
 * Template: Azure Blob Storage trigger
+* Name: Provide a name for the functionRetraini
 * Select a storage account: choose your Azure Percept MM service storage account (i.e. testmmmodels)
 * Blob storage path to be monitored: data
 
-### 2. Add the following environment variables in local.settings.json according to your Azure Percept MM service and Custom Vision project:
+### 2. Add the following environment variables in local.settings.json with values for your Azure Percept MM service and Custom Vision project:
 ```
 "AZURE_CLIENT_ID": "", 
 "AZURE_CLIENT_SECRET": "",
@@ -50,6 +51,9 @@ For example:
 "custom_vision_project_id": "2253..."
 ```
 ### 3. Grant the Service Principal account as "Storage Blob Data Reader" role to your Azure Percept MM storage account (defined as "mm_storage_account").   
+```
+Is this still necessary or does the PowerShell script setup the prefix-msi with access already?
+```
 
 ### 4. Add the following dependencies in requirements.txt:
 ```
@@ -73,7 +77,7 @@ import azure.functions as func
 
 import sczpy
 
-# Secure locker config
+# Percept MM storage config
 server_url = os.environ["mm_server_url"]
 storage_name = os.environ["mm_storage_account"]
 storage_container = os.environ["mm_telemetry_storage_container"]
