@@ -194,7 +194,6 @@ static inline std::unordered_map<std::string, std::string> parse_onvif_message(c
                         {
                             util::log_error("Malformed ONVIF control message: " +msg);
                         }
-                        //result[curtok] = result[curtok] + "/" + part;
                         result[curtok] = part;
                         break;
                     default:
