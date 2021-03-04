@@ -157,55 +157,53 @@ static inline std::unordered_map<std::string, std::string> parse_onvif_message(c
     while ((pos = dup.find_first_of(delimiter1)) != std::string::npos)
     {
         std::string part = dup.substr(0, pos);
-	printf("- parsed : %s \n", part.c_str());
         if (part.length() > 0)
         {
-            tokens_and_values.push_back(part+"_");
+            tokens_and_values.push_back(part + "_");
         }
         dup.erase(0, pos + 1);
     }
 
     // There should be one more part at the end
-    tokens_and_values.push_back(dup+"_");
+    tokens_and_values.push_back(dup + "_");
 
     // Now go through the vector of strings and convert it into a map
 
     std::unordered_map<std::string, std::string> result;
     for (size_t i = 0; i < tokens_and_values.size(); i++)
     {
-    	std::string curtok;
-	int count = 0;
-	printf("the one token and value: %s \n", tokens_and_values[i].c_str());
-	pos = 0;
-    	while ((pos = tokens_and_values[i].find_first_of(delimiter2)) != std::string::npos)
-    	{
+        std::string curtok;
+        int count = 0;
+        pos = 0;
+        while ((pos = tokens_and_values[i].find_first_of(delimiter2)) != std::string::npos)
+        {
             std::string part = tokens_and_values[i].substr(0, pos);
-	    printf("_%s", part.c_str());
-       	    if (part.length() > 0)
+            if (part.length() > 0)
             {
                 switch (count) 
-		{
-		    case(0):
-			curtok = part;
-			break;
-		    case(1):
-			result[curtok] = part;
-			break;
-		    case(2):
-			// the only feature by far take in two parameters is snapshot
-			if (curtok != "snapshot") 
-			{
-			    util::log_error("Malformed ONVIF control message: " +msg);
-			}
-			result[curtok] = result[curtok] + "/" + part;
-			break;
-		    default:
-			util::log_error("Malformed ONVIF control message: " +msg);
-		}
+                {
+                    case(0):
+                        curtok = part;
+                        break;
+                    case(1):
+                        result[curtok] = part;
+                        break;
+                    case(2):
+                    // the only feature by far take in two parameters is snapshot
+                        if (curtok != "snapshot") 
+                        {
+                            util::log_error("Malformed ONVIF control message: " +msg);
+                        }
+                        //result[curtok] = result[curtok] + "/" + part;
+                        result[curtok] = part;
+                        break;
+                    default:
+                        util::log_error("Malformed ONVIF control message: " +msg);
+                }
             }
             tokens_and_values[i].erase(0, pos + 1);
-	    count += 1;
-    	}
+            count += 1;
+        }
     }
     return result;
 }
@@ -221,14 +219,21 @@ static IOTHUBMESSAGE_DISPOSITION_RESULT receive_onvif_message(IOTHUB_MESSAGE_HAN
     // Set stuff based on results
     if (deserialized_msg.find(std::string("snapshot")) != deserialized_msg.end())
     {
-        const auto uri = deserialized_msg[std::string("snapshot")];
-	std::string cmd = "gst-launch-1.0 rtspsrc location=\"rtsp://localhost:" + uri + "\" is_live=true ! decodebin ! jpegenc snapshot=TRUE ! filesink location=/snapshot/snapshot.jpg";
-	if (system(cmd.c_str()) < 0)
-	{
-            util::log_error("couldn't take a snapshot of the rtsp stream at  rtsp://localhost:" + uri);
-            return IOTHUBMESSAGE_REJECTED;
-	}
+        std::string type = deserialized_msg[std::string("snapshot")];
+        if (type == "raw")
+        {
+            rtsp::take_snapshot(rtsp::StreamType::RAW);
+        }
+        else if ("result")
+        {
+            rtsp::take_snapshot(rtsp::StreamType::RESULT);
+        }
+        else
+        {
+            util::log_error("receive a invalid snapshot type request.");
+        }
     }
+           
 
     if (deserialized_msg.find(std::string("fps")) != deserialized_msg.end())
     {
