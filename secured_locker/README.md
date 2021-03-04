@@ -18,3 +18,5 @@ Azure Percept uses the Zero Trust security model, so you can help safeguard your
 [**Clean up resources**](https://github.com/kalpesh94/azure-percept-advanced-development/blob/main/secured_locker/provision-a-secured-locker.md#step-6-clean-up-resources) Learn how to clean up resources used by Azure Percept Model Management solution. 
 
 
+
+
