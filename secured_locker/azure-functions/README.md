@@ -22,7 +22,7 @@ To run the sample, you need:
 * Language : Python
 * Python interpreter: Python 3.6.x, 3.7.x 3.8.x are supported
 * Template: Azure Blob Storage trigger
-* Name: Provide a name for the functionRetraini
+* Name: provide a name for the project
 * Select a storage account: choose your Azure Percept MM service storage account (i.e. testmmmodels)
 * Blob storage path to be monitored: data
 
@@ -50,10 +50,26 @@ For example:
 "custom_vision_training_key": "4240...",
 "custom_vision_project_id": "2253..."
 ```
-### 3. Grant the Service Principal account as "Storage Blob Data Reader" role to your Azure Percept MM storage account (defined as "mm_storage_account").   
-```
-Is this still necessary or does the PowerShell script setup the prefix-msi with access already?
-```
+### 3. Assign the "Storage Blob Data Reader" role to the Service Principal for your Azure Percept MM storage account (defined as "mm_storage_account").   
+
+1. Launch PowerShell.
+
+2. Run the assign_storage_role script in the PowerShell terminal:
+   ```
+   cd azure-percept-advanced-development/secured_locker/azure-functions
+
+   ./assign_storage_role.ps1 -subscription <Azure subscription name or id of the MM service> -resourceGroup <resource group name of the MM service> -storageName <storage account name of the MM service> -clientId <client Id of Service Principal>
+   ```
+  
+   For example, the following command assigns the "Storage Blob Data Reader" role to the Service Principal with client Id ```12345``` for the ```my-mmmodels``` storage account instance in the ```my-rg``` resource group under the ```my-subscription``` subscription:
+
+   ```
+    ./assign_storage_role.ps1 -subscription my-subscription -resourceGroup my-rg -storageName my-mmmodels -clientId 12345
+   ```
+
+3. The script will open a web browser. Enter your Azure account login details when prompted.
+
+4. Once the script finishes, it will output the role assignment results.
 
 ### 4. Add the following dependencies in requirements.txt:
 ```
