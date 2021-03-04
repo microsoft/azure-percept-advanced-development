@@ -17,27 +17,53 @@ In this repository, you will find:
 * [machine-learning-notebooks](machine-learning-notebooks/README.md): Example Python notebooks which show how to train up a
   few example neural networks from scratch (or using transfer learning) and get them onto your device.
 * [Model and Data Protection](secured_locker/secured-locker-overview.md): Azure Percept currently supports AI model and data protection as a preview feature.
+* [Bring Your Own Model Pipeline Tutorials](tutorials/README.md): Tutorials for how to bring your own custom AI model (and post-processing pipeline) to the device.
 
 ## General Workflow
 
 One of the main things that this repository can be used for is to bring your own custom computer vision pipeline
 to your Azure Percept DK. The flow for doing that would be this:
 
-* Use whatever version of whatever DL framework you want (Tensorflow 2.x or 1.x, PyTorch, etc.)
-* Develop your custom DL model and save it to a format that can be converted to OpenVINO IR or OpenVINO Myriad X blob.
-  However, **make sure your ops/layers are supported by OpenVINO 2021.1**.
-  See [here for a compatiblity matrix](https://docs.openvinotoolkit.org/2021.1/openvino_docs_MO_DG_prepare_model_Supported_Frameworks_Layers.html).
-* Use OpenVINO to convert it to IR or blob format.
-  - I recommend using the [OpenVINO Workbench](https://docs.openvinotoolkit.org/2021.1/workbench_docs_Workbench_DG_Introduction.html)
-    to convert your model to OpenVINO IR (or to download a common, pretrained model from their model zoo).
-  - You can use the [scripts/run_workbench.sh](scripts/run_workbench.sh) script on Unix systems to run the workbench, or just
-    run its single command in Powershell on Windows.
-  - You can use a Docker container to convert IR to blob for our device. See the [scripts/compile_ir.sh](scripts/compile_ir.sh) script
-    and use it as a reference. Note that you will need to modify it to adjust for if you have multiple output layers in your network.
-* Develop a C++ subclass, using the examples we already have. See the [azureeyemodule](azureeyemodule/README.md) folder for how to do this.
-* The azureeyemodule is the IoT module running on the device responsible for doing inference. It will need to grab your model somehow. For development,
-  you could package your model up with your custom azureeyemodule and then have the custom program run it directly. You could also
-  have it pull down a model through the module twin (again, see the azureeyemodule folder for more details).
+1. Use whatever version of whatever DL framework you want (Tensorflow 2.x or 1.x, PyTorch, etc.) to develop your model.
+1. Save it to a
+   [format that can be converted to OpenVINO IR](https://docs.openvinotoolkit.org/2021.1/openvino_docs_MO_DG_prepare_model_convert_model_Converting_Model.html).
+   However, **make sure your ops/layers are supported by OpenVINO 2021.1**.
+   See [here for a compatiblity matrix](https://docs.openvinotoolkit.org/2021.1/openvino_docs_MO_DG_prepare_model_Supported_Frameworks_Layers.html).
+1. Use OpenVINO to convert it to IR or blob format.
+    * I recommend using the [OpenVINO Workbench](https://docs.openvinotoolkit.org/2021.1/workbench_docs_Workbench_DG_Introduction.html)
+      to convert your model to OpenVINO IR (or to download a common, pretrained model from their model zoo).
+    * You can use the [scripts/run_workbench.sh](scripts/run_workbench.sh) script on Unix systems to run the workbench, or
+      [scripts/run_workbench.ps1](scripts/run_workbench.ps1) script on Windows systems.
+    * You can use a Docker container to convert IR to blob for our device. See the [scripts/compile_ir.sh](scripts/compile_ir.sh) script
+      and use it as a reference (for Windows users: [scripts/compile_ir.ps1](scripts/compile_ir.ps1)).
+      Note that you will need to modify it to adjust for if you have multiple output layers in your network.
+1. Develop a C++ subclass, using the examples we already have. The Azure Percept DK's azureeyemodule runs a C++ application which
+   needs to know about your model in order for your model to run on the device. See the [tutorials](tutorials/README.md) and
+   [azureeyemodule](azureeyemodule/README.md) folder for how to do this.
+1. The azureeyemodule is the IoT module running on the device responsible for doing inference. It will need to grab your model somehow. For development,
+   you could package your model up with your custom azureeyemodule and then have the custom program run it directly. You could also
+   have it pull down a model through the module twin (again, see the azureeyemodule folder and tutorials for more details).
+
+See the [tutorials](tutorials/README.md) for detailed walkthroughs on how to do all of this.
+
+Note the following limitations while developing your own custom model for the device:
+
+* [Only certain ops/layers are supported](https://docs.openvinotoolkit.org/2021.1/openvino_docs_MO_DG_prepare_model_Supported_Frameworks_Layers.html).
+* Model inputs and outputs must be either unsigned 8 bit integers or 32-bit floating point values - other values are not currently supported
+  by the OpenCV G-API.
+* The model should be *small*. This is an embedded device for doing inference at the very edge of the IoT network. Its usual use case would be
+  to help inform a larger downstream model or to make simple decisions, like whether something moving is a cat or a person - not to do
+  instance segmentation over 200 different classes. In particular, while there is no hard and fast limit to model size, I have personally
+  found that models larger than 100 MB (after conversion to OpenVINO .blob format) have serious trouble getting loaded onto the device
+  and running. This is just a rule of thumb though; the point is to keep your models small.
+* The hardware accelerator on the device is an Intel Myriad X. It does not support quantization - only FP32 and FP16 are allowed weight values.
+* The VPU is best suited for accelerating convolutional architectures. Having said that, recurrent architectures are supported (as long
+  as your ops are in the compatibility matrix), they just aren't very fast. The Optical Character Recognition example model actually
+  makes use of an RNN.
+* You are not technically limited to a single model. You can bring cascaded models and stitch them into the G-API, but keep in mind
+  that this will typically result in slower inferences, especially if you are doing any processing of the outputs from one network
+  before feeding into the next, as these intermediate values will need to be offloaded from the VPU back to the ARM chip for computation.
+  For an example of how to do this, see the [OCR example model file](./azureeyemodule/app/model/ocr.cpp).
 
 ## Model URLs
 

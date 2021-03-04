@@ -7,7 +7,4 @@ This folder contains tutorials for how to bring your own model pipeline to the A
 
 1. [Start Here](banana-unet-tutorial/banana-unet-tutorial.md) - This tutorial walks you through the workflow and tools you will typically use to
    bring a custom model. It uses a model that we have already written and have working.
-
-**Under Construction**
-
-We have more tutorials coming in the next few weeks/months!
+1. [Train a new model from scratch using PyTorch and port the model to the device](pytorch-from-scratch-tutorial/pytorch-from-scratch-tutorial.md)
