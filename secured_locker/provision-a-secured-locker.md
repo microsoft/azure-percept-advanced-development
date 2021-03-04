@@ -124,7 +124,7 @@ The Azure Percept MM solution offers a ```config_certificate.ps1``` PowerShell s
 
    > **NOTE**: Write down the service URL. You'll use it to access the service later.
 
-## Step 4: Install Azure Percept Python Module
+
 If [Python](https://www.python.org/) is not already installed, then use the Dev Tools Pack Installer to configure the tools required to protect AI/Ml models and training data. Please note that the Dev Tools Pack Installer will reinstall any existing packages so that your tools are consistent with the Installer software versions.
 [Dev Tools Pack Installer Instructions](https://go.microsoft.com/fwlink/?linkid=2156431)
 
@@ -134,7 +134,18 @@ If [Python](https://www.python.org/) is not already installed, then use the Dev 
    pip install sczpy
    ```
 
-## Step 5: Clean up resources
+## Step 5: Try out samples
+After successfully provisioning Azure Percept MM services, try a sample:
+
+[Python app for model protection](https://github.com/microsoft/azure-percept-advanced-development/tree/main/secured_locker/python-program)
+
+[Python app for sensor data](https://github.com/microsoft/azure-percept-advanced-development/tree/main/secured_locker/python-retrain)
+
+[Notebook for model protection](https://github.com/microsoft/azure-percept-advanced-development/tree/main/secured_locker/jupyter-basics)
+
+[Azure function for retraining loop](https://github.com/microsoft/azure-percept-advanced-development/tree/main/secured_locker/azure-functions)
+
+## Step 6: Clean up resources
 
 Other Azure Percept MM features build upon this quickstart. If you plan to continue with subsequent quickstarts and tutorials, you may wish to leave these resources in place.
 
