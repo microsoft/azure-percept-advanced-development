@@ -5,7 +5,7 @@
 
 Please consider taking our [Product survey](https://go.microsoft.com/fwlink/?linkid=2156573) to help us improve Azure Percept Model and Data Protection features based on your IoT Edge background and goals.
 
-This Notebook uses Azure Percept MM Python SDK to preform a series of model operations:
+This Notebook uses Azure Percept MM Python sample code to preform a series of model operations:
 > * Encryption (encrypts ```model.txt``` to ```model.txt.enc```)
 > * Decryption (decrypts ```model.txt.enc``` to ``` model.decrypted.txt```)
 > * Upload (uploads ```model.txt.enc```)
