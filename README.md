@@ -38,6 +38,23 @@ to your Azure Percept DK. The flow for doing that would be this:
   you could package your model up with your custom azureeyemodule and then have the custom program run it directly. You could also
   have it pull down a model through the module twin (again, see the azureeyemodule folder for more details).
 
+## Model URLs
+
+The Azure Percept DK's azureeeyemodule supports a few AI models out of the box. The default model that runs is Single Shot Detector (SSD),
+trained for general object detection on the COCO dataset. But there are a few others that can run without any hassle. Here are the links
+for the models that we officially guarantee (because we host them and test them on every release).
+
+To use these models, you can download them through the Azure Percept Studio, or you can paste the URLs into your Module Twin
+as the value for "ModelZipUrl".
+
+There are more models than this, but only two of them have a permanent link right now. In the coming weeks,
+we'll post the others.
+
+| Model            | Source            | License           | URL                    |
+|------------------|-------------------|-------------------|------------------------|
+| Person Detection | [Intel Open Model Zoo](https://docs.openvinotoolkit.org/latest/omz_models_intel_person_detection_retail_0013_description_person_detection_retail_0013.html) | Apache 2.0 | https://aedsamples.blob.core.windows.net/vision/aeddevkitnew/person-detection-retail-0013.zip |
+| SSD General      | [Intel Open Model Zoo](https://docs.openvinotoolkit.org/latest/omz_models_public_ssdlite_mobilenet_v2_ssdlite_mobilenet_v2.html) | Apache 2.0 | https://aedsamples.blob.core.windows.net/vision/aeddevkitnew/tiny-yolo-v2.zip |
+
 ## Contributing
 
 This repository follows the [Microsoft Code of Conduct](https://opensource.microsoft.com/codeofconduct).
