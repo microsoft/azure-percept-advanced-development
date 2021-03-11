@@ -131,7 +131,7 @@ If [Python](https://www.python.org/) is not already installed, then use the Dev 
 [Dev Tools Pack Installer Instructions](https://go.microsoft.com/fwlink/?linkid=2156431)
 
 1. Launch PowerShell.
-2. Install Azure Percept MM Powershell module in the PowerShell terminal:
+2. Install Azure Percept MM Python module in the PowerShell terminal:
    ```
    pip install sczpy
    ```
