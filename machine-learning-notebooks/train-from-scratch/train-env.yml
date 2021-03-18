@@ -1,0 +1,13 @@
+name: train-env
+channels:
+    - defaults
+    - pytorch
+dependencies:
+    - python=3.6.2
+    - pytorch
+    - pillow
+    - pip:
+        - opencv-python
+        - tensorboard
+        - azureml-sdk
+        - tqdm

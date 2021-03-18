@@ -1,0 +1,8 @@
+!data/
+outputs/
+*.pyc
+__pycache__/
+.ipynb_aml_checkpoints/
+.ipynb_checkpoints/
+Test*.ipynb
+*.amltmp
