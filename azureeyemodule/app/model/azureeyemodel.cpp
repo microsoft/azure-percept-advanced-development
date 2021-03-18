@@ -357,7 +357,7 @@ bool AzureEyeModel::load_manifest(const std::string &manifestfpath, std::vector<
     // is S1 or YOLO
     if (modeltype == parser::Parser::OBJECT_DETECTION)
     {
-        if (util::search_keyword_in_file("mobilenetv2ssdlitev2_pytorch", "/app/model/model.xml"))
+        if (util::search_keyword_in_file("mobilenetv2ssdlitev2_pytorch", "/app/model/model.xml") || util::search_keyword_in_file("compact_od_s1_v2", "/app/model/model.xml"))
         {
             modeltype = parser::Parser::S1;
         }

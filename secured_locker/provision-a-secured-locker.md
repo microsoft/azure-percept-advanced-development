@@ -131,7 +131,7 @@ If [Python](https://www.python.org/) is not already installed, then use the Dev 
 [Dev Tools Pack Installer Instructions](https://go.microsoft.com/fwlink/?linkid=2156431)
 
 1. Launch PowerShell.
-2. Install Azure Percept MM Powershell module in the PowerShell terminal:
+2. Install Azure Percept MM Python module in the PowerShell terminal:
    ```
    pip install sczpy
    ```
@@ -139,13 +139,13 @@ If [Python](https://www.python.org/) is not already installed, then use the Dev 
 ## Step 5: Try out samples
 After successfully provisioning Azure Percept MM services, try a sample:
 
-[Python app for model protection](https://github.com/microsoft/azure-percept-advanced-development/tree/main/secured_locker/python-program)
+[Python app for model protection](./python-program)
 
-[Python app for sensor data](https://github.com/microsoft/azure-percept-advanced-development/tree/main/secured_locker/python-retrain)
+[Python app for sensor data](./python-retrain)
 
-[Notebook for model protection](https://github.com/microsoft/azure-percept-advanced-development/tree/main/secured_locker/jupyter-basics)
+[Notebook for integration with AzureEyeModule](./azureeyemodule-integration)
 
-[Azure function for retraining loop](https://github.com/microsoft/azure-percept-advanced-development/tree/main/secured_locker/azure-functions)
+[Azure function for retraining loop](./azure-functions)
 
 ## Step 6: Clean up resources
 
