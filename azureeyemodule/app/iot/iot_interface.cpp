@@ -12,6 +12,7 @@
 #include <sstream>
 #include <thread>
 #include <unordered_map>
+#include <gst/gst.h>
 
 // Third party includes
 #include "iothub_module_client_ll.h"
@@ -23,6 +24,7 @@
 #include "iothub_client_options.h"
 #include "iothubtransportmqtt.h"
 #include "iothub.h"
+#include "parson.h"
 
 // Local includes
 #include "iot_interface.hpp"
@@ -194,6 +196,7 @@ static inline std::unordered_map<std::string, std::string> parse_onvif_message(c
                         {
                             util::log_error("Malformed ONVIF control message: " +msg);
                         }
+                        //result[curtok] = result[curtok] + "/" + part;
                         result[curtok] = part;
                         break;
                     default:
@@ -210,15 +213,21 @@ static inline std::unordered_map<std::string, std::string> parse_onvif_message(c
 /** RECV_MSG message handler. Handles incoming messages for the ONVIF channel. */
 static IOTHUBMESSAGE_DISPOSITION_RESULT receive_onvif_message(IOTHUB_MESSAGE_HANDLE message, void *unused)
 {
-    const std::string msg = std::string(IoTHubMessage_GetMessageId(message));
-    util::log_info("Got an ONVIF control message: " + msg);
-
-    auto deserialized_msg = parse_onvif_message(msg);
+    const unsigned char* buffer = 0;
+    size_t s = 256;
+    IoTHubMessage_GetByteArray(message, &buffer, &s);
+    char str[s +1];
+    memcpy(str, buffer, s);
+    str[s] = 0;
+    JSON_Value *root_value = json_parse_string(reinterpret_cast<const char*>(str));
+    JSON_Object *root_object = json_value_get_object(root_value);
+    util::log_info("Got an ONVIF control message: " + std::string(str));
 
     // Set stuff based on results
-    if (deserialized_msg.find(std::string("snapshot")) != deserialized_msg.end())
+    if (json_object_get_value(root_object, "snapshot") != nullptr)
     {
-        std::string type = deserialized_msg[std::string("snapshot")];
+        printf("accept taking snapshot \n\n");
+        std::string type  = json_object_get_string(root_object, "snapshot");
         if (type == "raw")
         {
             rtsp::take_snapshot(rtsp::StreamType::RAW);
@@ -234,9 +243,10 @@ static IOTHUBMESSAGE_DISPOSITION_RESULT receive_onvif_message(IOTHUB_MESSAGE_HAN
     }
            
 
-    if (deserialized_msg.find(std::string("fps")) != deserialized_msg.end())
+    if (json_object_get_value(root_object, "-fps") != nullptr)
     {
-        const auto value = deserialized_msg[std::string("fps")];
+        printf("accept frame per second change \n\n");
+        std::string value  = json_object_get_string(root_object, "-fps");
         try
         {
             rtsp::set_stream_params(rtsp::StreamType::RAW, std::stoi(value));
@@ -249,14 +259,17 @@ static IOTHUBMESSAGE_DISPOSITION_RESULT receive_onvif_message(IOTHUB_MESSAGE_HAN
         }
     }
 
-    if (deserialized_msg.find(std::string("s")) != deserialized_msg.end())
+    if (json_object_get_value(root_object, "-s") != nullptr)
     {
-        const auto value = deserialized_msg[std::string("s")];
+        printf("accept resolution change \n\n");
+        std::string value  = json_object_get_string(root_object, "-s");
         if (rtsp::is_valid_resolution(std::string(value)))
         {
             iot::update::restart_model_with_new_resolution(std::string(value));
-            rtsp::set_stream_params(rtsp::StreamType::RAW, std::string(value));
-            rtsp::set_stream_params(rtsp::StreamType::RESULT, std::string(value));
+            rtsp::set_stream_params(rtsp::StreamType::RAW, std::string(value), false);
+            rtsp::set_stream_params(rtsp::StreamType::RESULT, std::string(value), false);
+            rtsp::set_stream_params(rtsp::StreamType::RAW,  true);
+            rtsp::set_stream_params(rtsp::StreamType::RESULT, true);
         }
         else
         {
