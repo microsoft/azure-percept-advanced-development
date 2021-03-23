@@ -166,9 +166,9 @@ bool ONNXSSDModel::pull_data(cv::GStreamingCompiled &pipeline){
     {
         if(out_boxes.has_value())
         {
-            this->handle_inference_output(out_bgr, out_bgr_ts, out_bgr_seqno, out_boxes, out_labels, out_confidences, out_size, last_boxes, last_labels, last_confidences);
+            this->handle_inference_output(out_bgr_ts, out_bgr_seqno, out_boxes, out_labels, out_confidences, out_size, last_boxes, last_labels, last_confidences);
         }
-        this->handle_bgr_output(out_bgr, last_bgr, last_boxes, last_labels, last_confidences);
+        this->handle_bgr_output(out_bgr, out_bgr_ts, last_bgr, last_boxes, last_labels, last_confidences);
 
         if (this->restarting)
         {

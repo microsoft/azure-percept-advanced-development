@@ -156,7 +156,7 @@ bool ClassificationModel::pull_data(cv::GStreamingCompiled &pipeline)
     {
         this->handle_h264_output(out_h264, out_h264_ts, out_h264_seqno, ofs);
         this->handle_inference_output(out_nn_ts, out_nn_seqno, out_labels, out_confidences, last_labels, last_confidences);
-        this->handle_bgr_output(out_bgr, last_bgr, last_labels, last_confidences);
+        this->handle_bgr_output(out_bgr, out_bgr_ts, last_bgr, last_labels, last_confidences);
 
         if (restarting)
         {
@@ -170,33 +170,30 @@ bool ClassificationModel::pull_data(cv::GStreamingCompiled &pipeline)
     return true;
 }
 
-void ClassificationModel::handle_bgr_output(cv::optional<cv::Mat> &out_bgr, cv::Mat &last_bgr, const std::vector<int> &last_labels, const std::vector<float> &last_confidences)
+void ClassificationModel::handle_bgr_output(cv::optional<cv::Mat> &out_bgr, const cv::optional<int64_t> &bgr_ts, cv::Mat &last_bgr,
+                                            const std::vector<int> &last_labels, const std::vector<float> &last_confidences)
 {
     if (!out_bgr.has_value())
     {
         return;
     }
 
+    // This is derived on the same branch of the G-API graph as out_bgr, so should also have value.
+    CV_Assert(bgr_ts.has_value());
+
+    // Cache this most recent frame.
     last_bgr = *out_bgr;
 
-    cv::Mat original_bgr;
-    last_bgr.copyTo(original_bgr);
+    // Mark up this frame with our preview function.
+    cv::Mat marked_up_bgr;
+    last_bgr.copyTo(marked_up_bgr);
+    this->preview(marked_up_bgr, last_labels, last_confidences);
 
-    rtsp::update_data_raw(last_bgr);
-    this->preview(last_bgr, last_labels, last_confidences);
+    // Stream the latest BGR frame (or cache it for later if we are time-aligning).
+    this->stream_frames(last_bgr, marked_up_bgr, bgr_ts);
 
-    if (this->status_msg.empty())
-    {
-        rtsp::update_data_result(last_bgr);
-    }
-    else
-    {
-        cv::Mat bgr_with_status;
-        last_bgr.copyTo(bgr_with_status);
-
-        util::put_text(bgr_with_status, this->status_msg);
-        rtsp::update_data_result(bgr_with_status);
-    }
+    // Maybe save and export the retraining data at this point
+    this->save_retraining_data(last_bgr, last_confidences);
 }
 
 void ClassificationModel::preview(const cv::Mat &rgb, const std::vector<int> &labels, const std::vector<float> &confidences) const
@@ -305,6 +302,12 @@ void ClassificationModel::handle_inference_output(const cv::optional<int64_t> &o
     // Update the cached labels and confidences now that we have new ones.
     last_labels = *out_labels;
     last_confidences = *out_confidences;
+
+    // If we want to time-align our network inferences with camera frames, we need to
+    // do that here (now that we have a new inference to align in time with the frames we've been saving).
+    // The super class will check for us and handle this appropriately.
+    auto f_to_call_on_each_frame = [last_labels, last_confidences, this](cv::Mat &frame){ this->preview(frame, last_labels, last_confidences); };
+    this->handle_new_inference_for_time_alignment(*out_nn_ts, f_to_call_on_each_frame);
 }
 
 void ClassificationModel::log_parameters() const
