@@ -6,6 +6,7 @@
 #include <map>
 #include <queue>
 #include <string>
+#include <stdexcept>
 
 // Third party includes
 #include <gst/gst.h>
@@ -16,6 +17,7 @@
 
 // Local includes
 #include "rtsp.hpp"
+#include "framebuffer.hpp"
 #include "../util/helper.hpp"
 
 namespace rtsp {
@@ -25,8 +27,8 @@ typedef struct {
     /** Is this stream enabled? */
     bool enabled;
 
-    /** Resolution string. Should be one of the allowed resolutions: native, 1080p, 720p. */
-    std::string resolution;
+    /** Resolution. Should be one of the allowed resolutions: native, 1080p, 720p. */
+    Resolution resolution;
 
     /** Frames per second. */
     int fps;
@@ -96,19 +98,13 @@ const std::string rtsp_result_tcp_source_name = "rtsp-src-result-tcp";
 /** The name of the appsrc for the H.264 stream. */
 const std::string rtsp_h264_source_name = "rtsp-src-h.264";
 
-/** Default height of the RTSP images. */
-const int DEFAULT_HEIGHT = 616;
-
-/** Default width of the RTSP images. */
-const int DEFAULT_WIDTH = 816;
-
 /** Default FPS. */
 const int DEFAULT_FPS = 10;
 
 /** Struct to contain the parameters for the raw UDP stream. Read by a callback function. */
 static StreamParameters raw_udp_context {
     .enabled        = true,
-    .resolution     = "native",
+    .resolution     = Resolution::NATIVE,
     .fps            = DEFAULT_FPS,
     .stream_type    = StreamType::RAW,
     .name           = rtsp_raw_udp_source_name,
@@ -121,7 +117,7 @@ static StreamParameters raw_udp_context {
 /** Struct to contain the parameters for the raw TCP stream. Read by a callback function. */
 static StreamParameters raw_tcp_context {
     .enabled        = true,
-    .resolution     = "native",
+    .resolution     = Resolution::NATIVE,
     .fps            = DEFAULT_FPS,
     .stream_type    = StreamType::RAW,
     .name           = rtsp_raw_tcp_source_name,
@@ -134,7 +130,7 @@ static StreamParameters raw_tcp_context {
 /** Struct to contain the parameters for the result UDP stream. Read by a callback function. */
 static StreamParameters result_udp_context {
     .enabled        = true,
-    .resolution     = "native",
+    .resolution     = Resolution::NATIVE,
     .fps            = DEFAULT_FPS,
     .stream_type    = StreamType::RESULT,
     .name           = rtsp_result_udp_source_name,
@@ -147,7 +143,7 @@ static StreamParameters result_udp_context {
 /** Struct to contain the parameters for the result TCP stream. Read by a callback function. */
 static StreamParameters result_tcp_context {
     .enabled        = true,
-    .resolution     = "native",
+    .resolution     = Resolution::NATIVE,
     .fps            = DEFAULT_FPS,
     .stream_type    = StreamType::RESULT,
     .name           = rtsp_result_tcp_source_name,
@@ -160,7 +156,7 @@ static StreamParameters result_tcp_context {
 /** Struct to contain the parameters for the H.264 stream. Read by a callback function. */
 static StreamParameters h264_context {
     .enabled        = true,
-    .resolution     = "native",
+    .resolution     = Resolution::NATIVE,
     .fps            = DEFAULT_FPS,
     .stream_type    = StreamType::H264_RAW,
     .name           = rtsp_h264_source_name,
@@ -170,19 +166,14 @@ static StreamParameters h264_context {
     .factory        = nullptr,
 };
 
-/** This is the RGB frame we feed out whenever we need more for the raw stream. Maps from resolution string to buffer. */
-std::map<std::string, cv::Mat> raw_buffers = {
-    {"native", cv::Mat(DEFAULT_HEIGHT,  DEFAULT_WIDTH,  CV_8UC3, cv::Scalar(0, 0, 0))},
-    {"1080p",  cv::Mat(1080,            1920,           CV_8UC3, cv::Scalar(0, 0, 0))},
-    {"720p",   cv::Mat(720,             1280,           CV_8UC3, cv::Scalar(0, 0, 0))},
-};
+/** The maximum number of frames we keep in memory for each queue before we start overwriting old ones. */
+static const size_t QUEUE_SIZE = 240;
 
-/** This is the RGB frame we feed out whenever we need more for the result stream. Maps from resolution string to buffer. */
-std::map<std::string, cv::Mat> result_buffers = {
-    {"native", cv::Mat(DEFAULT_HEIGHT,  DEFAULT_WIDTH,  CV_8UC3, cv::Scalar(0, 0, 0))},
-    {"1080p",  cv::Mat(1080,            1920,           CV_8UC3, cv::Scalar(0, 0, 0))},
-    {"720p",   cv::Mat(720,             1280,           CV_8UC3, cv::Scalar(0, 0, 0))},
-};
+/** We have a single unique FrameBuffer for the raw frames. */
+FrameBuffer raw_buffer(QUEUE_SIZE, DEFAULT_FPS);
+
+/** We have a single unique FrameBuffer for the result frames (the ones with inference results overlaid on top of them). */
+FrameBuffer result_buffer(QUEUE_SIZE, DEFAULT_FPS);
 
 /** This is the H.264 frame we feed out whenever we need more for the H.264 stream. Resolution is taken care of by the AI model. */
 static std::queue<H264> h264_buffer;
@@ -266,30 +257,39 @@ static void disconnect(const StreamType &stream_type)
     gst_rtsp_server_client_filter(server, client_filter, NULL);
 }
 
-/** Gets a copy of the buffer that corresponds to the given stream name. */
-static cv::Mat get_buffer(const std::string &stream_name)
+/**
+ * If there is only one frame left in the queue, return a copy of it,
+ * but if there is more than one frame left in the queue, move the earliest one
+ * out of it.
+ */
+static cv::Mat get_frame(const std::string &stream_name)
 {
-    // This is a pithy, though heavy-handed way to do it. Constructs a new map every time we call this function.
-    std::map<std::string, cv::Mat> the_buffers = {
-        {rtsp_raw_udp_source_name, raw_buffers.at(raw_udp_context.resolution)},
-        {rtsp_raw_tcp_source_name, raw_buffers.at(raw_tcp_context.resolution)},
-        {rtsp_result_udp_source_name, result_buffers.at(result_udp_context.resolution)},
-        {rtsp_result_tcp_source_name, result_buffers.at(result_tcp_context.resolution)},
-    };
-
-    cv::Mat mat;
-    the_buffers.at(stream_name).copyTo(mat);
-    return mat;
+    if (stream_name == rtsp_raw_udp_source_name)
+    {
+        return raw_buffer.get(raw_udp_context.resolution);
+    }
+    else if (stream_name == rtsp_raw_tcp_source_name)
+    {
+        return raw_buffer.get(raw_tcp_context.resolution);
+    }
+    else if (stream_name == rtsp_result_udp_source_name)
+    {
+        return result_buffer.get(result_udp_context.resolution);
+    }
+    else
+    {
+        return result_buffer.get(result_tcp_context.resolution);
+    }
 }
 
 /** Callback to call whenever our app source needs another buffer to feed out. */
 static void need_data_callback(GstElement *appsrc, guint unused, StreamParameters *params)
 {
     // Feed out the buffer
-    cv::Mat stream_buffer = get_buffer(params->name);
-    guint size = stream_buffer.size().width * stream_buffer.size().height * stream_buffer.channels();
+    cv::Mat frame = get_frame(params->name);
+    guint size = frame.size().width * frame.size().height * frame.channels();
     GstBuffer *buffer = gst_buffer_new_allocate(NULL, size, NULL);
-    gst_buffer_fill(buffer, 0, stream_buffer.data, size);
+    gst_buffer_fill(buffer, 0, frame.data, size);
 
     // Increment the timestamp.
     GST_BUFFER_PTS(buffer) = params->timestamp;
@@ -364,8 +364,8 @@ static void configure_stream(GstRTSPMediaFactory *factory, GstRTSPMedia *media, 
     // Tell appsrc that we will be dealing with a timestamped buffer
     gst_util_set_object_arg(G_OBJECT(appsrc), "format", "time");
 
-    // Determine the width and height of the stream from its resolution string.
-    auto buffer = get_buffer(params->name);
+    // Determine the width and height of the stream from its resolution.
+    auto buffer = get_frame(params->name);
     int width = buffer.size().width;
     int height = buffer.size().height;
 
@@ -412,9 +412,10 @@ static void configure_stream_h264(GstRTSPMediaFactory *factory, GstRTSPMedia *me
     // Tell appsrc that we will be dealing with a timestamped buffer
     gst_util_set_object_arg(G_OBJECT(appsrc), "format", "time");
 
-    // Determine the width and height of the stream from its resolution string. Uses raw streams resolutions, since H.264 doesn't have its own.
-    int width = raw_buffers.at(h264_context.resolution).size().width;
-    int height = raw_buffers.at(h264_context.resolution).size().height;
+    // Determine the width and height of the stream from its resolution.
+    int width;
+    int height;
+    std::tie(height, width) = get_height_and_width(h264_context.resolution);
 
     // Configure the video's caps (capabilities)
     g_object_set(G_OBJECT(appsrc), "caps",
@@ -539,7 +540,7 @@ static void connect(const StreamType &stream_type)
     g_object_unref(mounts);
 }
 
-std::string get_resolution(const StreamType &type)
+Resolution get_resolution(const StreamType &type)
 {
     switch (type)
     {
@@ -599,21 +600,73 @@ void* gst_rtsp_server_thread(void *unused)
     return NULL;
 }
 
-bool is_valid_resolution(const std::string &resolution)
+static void add_bunch_of_frames(const std::vector<cv::Mat> &mats, FrameBuffer &buffer)
 {
-    return raw_buffers.count(resolution) != 0;
+    // If we have too many frames to put into the buffer,
+    // we will overflow our buffer, leading to jumps in time.
+    // But if we don't deliver enough, the stream will pause
+    // waiting for new frames.
+    //
+    // So let's remove every Nth frame from the delivery to make
+    // sure we don't overflow.
+    const auto max_allowed = buffer.room();
+
+    if (max_allowed == 0)
+    {
+        // No room. Ignore this request.
+        return;
+    }
+    else if (mats.size() > max_allowed)
+    {
+        // Only take every Nth frame (up to however many we are allowed to take)
+        size_t n = mats.size() / max_allowed;
+        #ifdef DEBUG_TIME_ALIGNMENT
+            util::log_debug("Not enough room. Only taking " + std::to_string(max_allowed) + " frames. So getting every " + std::to_string(n) + "th/rd/nd");
+        #endif
+
+        size_t taken = 0;
+        for (size_t i = 0; i < mats.size(); i++)
+        {
+            if ((i % n) == 0)
+            {
+                buffer.put(mats.at(i));
+                taken++;
+            }
+
+            if (taken >= max_allowed)
+            {
+                break;
+            }
+        }
+    }
+    else
+    {
+        // Put them all in
+        for (const auto &mat : mats)
+        {
+            buffer.put(mat);
+        }
+    }
 }
 
 void update_data_raw(const cv::Mat &mat)
 {
-    mat.copyTo(raw_buffers.at(raw_udp_context.resolution));
-    mat.copyTo(raw_buffers.at(raw_tcp_context.resolution));
+    update_data_raw(std::vector<cv::Mat>{mat});
+}
+
+void update_data_raw(const std::vector<cv::Mat> &mats)
+{
+    add_bunch_of_frames(mats, raw_buffer);
 }
 
 void update_data_result(const cv::Mat &mat)
 {
-    mat.copyTo(result_buffers.at(result_udp_context.resolution));
-    mat.copyTo(result_buffers.at(result_tcp_context.resolution));
+    update_data_result(std::vector<cv::Mat>{mat});
+}
+
+void update_data_result(const std::vector<cv::Mat> &mats)
+{
+    add_bunch_of_frames(mats, result_buffer);
 }
 
 void update_data_h264(const H264 &frame)
@@ -653,6 +706,7 @@ void set_stream_params(const StreamType &type, bool enable)
         default:
             util::log_error("Unrecognized stream type when trying to enable/disable an RTSP stream.");
             assert(false);
+            previously_enabled = false;  // Make release build happy
             break;
     }
 
@@ -680,11 +734,13 @@ void set_stream_params(const StreamType &type, int fps)
     switch (type)
     {
         case StreamType::RAW:
+            raw_buffer.set_fps(fps);
             raw_udp_context.fps = fps;
             raw_tcp_context.fps = fps;
             util::log_info("Raw RTSP Stream's FPS changed to " + std::to_string(fps));
             break;
         case StreamType::RESULT:
+            result_buffer.set_fps(fps);
             result_udp_context.fps = fps;
             result_tcp_context.fps = fps;
             util::log_info("Result RTSP Stream's FPS changed to " + std::to_string(fps));
@@ -694,36 +750,29 @@ void set_stream_params(const StreamType &type, int fps)
             util::log_info("H.264 Stream's FPS changed to " + std::to_string(fps));
             break;
         default:
-            util::log_info("Unrecognized stream type when trying to change an RTSP stream's FPS.");
+            util::log_error("Unrecognized stream type when trying to change an RTSP stream's FPS.");
             assert(false);
             break;
     }
 }
 
-void set_stream_params(const StreamType &type, const std::string &resolution)
+void set_stream_params(const StreamType &type, const Resolution &resolution)
 {
-    // Sanity check if the resolution type is allowed.
-    if (raw_buffers.count(resolution) == 0)
-    {
-        util::log_info("RTSP params given an unrecognized resolution value: \"" + resolution + "\"");
-        return;
-    }
-
     switch (type)
     {
         case StreamType::RAW:
             raw_udp_context.resolution = resolution;
             raw_tcp_context.resolution = resolution;
-            util::log_info("Raw RTSP Stream's resolution changed to " + resolution);
+            util::log_info("Raw RTSP Stream's resolution changed to " + resolution_to_string(resolution));
             break;
         case StreamType::RESULT:
             result_udp_context.resolution = resolution;
             result_tcp_context.resolution = resolution;
-            util::log_info("Result RTSP Stream's resolution changed to " + resolution);
+            util::log_info("Result RTSP Stream's resolution changed to " + resolution_to_string(resolution));
             break;
         case StreamType::H264_RAW:
             h264_context.resolution = resolution;
-            util::log_info("H.264 Stream's resolution changed to " + resolution);
+            util::log_info("H.264 Stream's resolution changed to " + resolution_to_string(resolution));
             break;
         default:
             util::log_error("Unrecognized stream type when trying to change an RTSP stream's resolution.");
@@ -738,13 +787,13 @@ void set_stream_params(const StreamType &type, int fps, bool enable)
     set_stream_params(type, enable);
 }
 
-void set_stream_params(const StreamType &type, const std::string &resolution, bool enable)
+void set_stream_params(const StreamType &type, const Resolution &resolution, bool enable)
 {
     set_stream_params(type, resolution);
     set_stream_params(type, enable);
 }
 
-void set_stream_params(const StreamType &type, const std::string &resolution, int fps, bool enable)
+void set_stream_params(const StreamType &type, const Resolution &resolution, int fps, bool enable)
 {
     set_stream_params(type, resolution, enable);
     set_stream_params(type, fps);
@@ -756,11 +805,11 @@ void take_snapshot(const StreamType &type)
     switch (type)
     {
         case (StreamType::RAW):
-            snapshot = get_buffer(rtsp_raw_udp_source_name);
+            snapshot = get_frame(rtsp_raw_udp_source_name);
             cv::imwrite("/snapshot/snapshot.jpg", snapshot);
             break;
         case (StreamType::RESULT):
-            snapshot = get_buffer(rtsp_result_udp_source_name);
+            snapshot = get_frame(rtsp_result_udp_source_name);
             cv::imwrite("/snapshot/snapshot.jpg", snapshot);
             break;
         default:

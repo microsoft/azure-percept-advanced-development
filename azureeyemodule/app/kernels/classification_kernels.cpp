@@ -17,9 +17,9 @@ namespace gapi {
 namespace streaming {
 
 /** C++ wrapper for classification op */
-GClassificationsWithConf parseClass(const GMat& in, const GOpaque<Size>& in_sz, float confidence_threshold)
+GClassificationsWithConf parse_class(const GMat& in)
 {
-    return GParseClass::on(in, in_sz, confidence_threshold);
+    return GParseClass::on(in);
 }
 
 } // namespace streaming

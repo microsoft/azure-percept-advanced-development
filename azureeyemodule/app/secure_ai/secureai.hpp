@@ -43,13 +43,30 @@ struct SecureAIParams {
     static bool from_string(const std::string &str, SecureAIParams &result);
 };
 
-/** Update the secure AI lifecycle parameters. Returns true if anything is different from what we had before. This operates using a mutex. */
-bool update_secure_model_params(const std::string &model_managment_server_url, const std::string &model_name, const std::string &model_version, bool enable, bool download_from_model_management_server, const std::string &model_url);
+/**
+ * Update the secure AI lifecycle parameters.
+ * Returns true if anything is different from what we had before.
+ *
+ * NOTE: This operates using a mutex and blocks until it is available.
+ */
+bool update_secure_model_params(const std::string &model_managment_server_url, const std::string &model_name,
+                                const std::string &model_version, bool enable, bool download_from_model_management_server,
+                                const std::string &model_url);
 
-/** Get a copy of the current secure AI model parameters. This is thread-safe, as it creates a copy and the creation of the copy is hidden behind a mutex. */
+/**
+ * Get a copy of the current secure AI model parameters.
+ *
+ * NOTE: This is thread-safe, as it creates a copy and the creation of the copy is hidden behind a mutex. We block until
+ *       we get that mutex.
+ */
 SecureAIParams get_model_params();
 
-/** Download the model from model management server or shared URL, and then decrypt it with sczpy APIs. Returns true on success. */
+/**
+ * Download the model from model management server or shared URL, and then decrypt it with sczpy APIs.
+ * Returns true on success.
+ *
+ * This function does NOT take the mutex, as it does not access the singleton secure AI parameters.
+ */
 bool download_model(std::vector<std::string> &modelfiles, const std::string &secureconfig);
 
 } // namespace secure

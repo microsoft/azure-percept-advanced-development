@@ -253,7 +253,7 @@ class MobileNetForSemSeg(torch.nn.Module):
         # Take only the features portion, not the classifier portion of mobilenet
         mobilenet_features = torch.hub.load("pytorch/vision", "mobilenet_v2", pretrained=True).features
         self.mobilenet = torch.nn.ModuleList(mobilenet_features).eval()  # Set to eval mode!
-        
+
         # Make sure to freeze the feature extraction layers
         for parameter in self.mobilenet.parameters():
             parameter.requires_grad = False
@@ -271,7 +271,7 @@ class MobileNetForSemSeg(torch.nn.Module):
         self.upconv4 = self.expand_block(96*2, 32, 3, 1)        # Output shape (-1, 32,  32, 32)
         self.upconv3 = self.expand_block(32*2, 24, 3, 1)        # Output shape (-1, 24,  64, 64)
         self.upconv2 = self.expand_block(24*2, 32, 3, 1)        # Output shape (-1, 32, 128, 128)
-        self.upconv1 = self.expand_block(32*2, nclasses, 3, 1)  # Output shape (-1, 32, 256, 256)
+        self.upconv1 = self.expand_block(32*2, nclasses, 3, 1)  # Output shape (-1,  N, 256, 256)
 
     def __call__(self, x):
         # Feature Extraction
@@ -393,12 +393,12 @@ def train_one_epoch(model, dataloader, loss_fn, optimizer, scheduler, writer, ep
         # Log
         if log:
             writer.add_scalar("Loss/train", loss, epoch)
-            
+
             # Log with AML
             run = Run.get_context()
             logloss = np.asscalar(torch.clone(loss).detach().cpu().numpy())
             run.log(name="Loss/train", value=logloss)
-            
+
             if scheduler is not None:
                 writer.add_scalar("Learning-Rate", scheduler.get_last_lr()[0])  # get_last_lr() returns a list
                 run.log(name="Learning-Rate", value=scheduler.get_last_lr()[0])

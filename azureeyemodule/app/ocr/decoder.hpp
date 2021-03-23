@@ -20,7 +20,6 @@
 
 namespace ocr
 {
-
     template<typename Iter> void softmax_and_choose(Iter begin, Iter end, int *argmax, float *prob);
 
     template<typename Iter> std::vector<float> softmax(Iter begin, Iter end);

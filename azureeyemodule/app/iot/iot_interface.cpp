@@ -177,7 +177,7 @@ static IOTHUBMESSAGE_DISPOSITION_RESULT receive_onvif_message(IOTHUB_MESSAGE_HAN
             return IOTHUBMESSAGE_REJECTED;
         }
     }
-           
+
 
     if (json_object_get_value(root_object, "-fps") != nullptr)
     {
@@ -197,15 +197,15 @@ static IOTHUBMESSAGE_DISPOSITION_RESULT receive_onvif_message(IOTHUB_MESSAGE_HAN
 
     if (json_object_get_value(root_object, "-s") != nullptr)
     {
-        std::string value  = json_object_get_string(root_object, "-s");
+        std::string value = json_object_get_string(root_object, "-s");
         if (rtsp::is_valid_resolution(std::string(value)))
         {
             // change the model resolution
-            iot::update::restart_model_with_new_resolution(std::string(value));
+            iot::update::restart_model_with_new_resolution(rtsp::resolution_string_to_enum(std::string(value)));
 
             // reset the rtsp stream resolution, and then disconnect the stream to let the new parameter can be loaded
-            rtsp::set_stream_params(rtsp::StreamType::RAW, std::string(value), false);
-            rtsp::set_stream_params(rtsp::StreamType::RESULT, std::string(value), false);
+            rtsp::set_stream_params(rtsp::StreamType::RAW, rtsp::resolution_string_to_enum(std::string(value)), false);
+            rtsp::set_stream_params(rtsp::StreamType::RESULT, rtsp::resolution_string_to_enum(std::string(value)), false);
 
             // restart the rtsp stream
             rtsp::set_stream_params(rtsp::StreamType::RAW,  true);
@@ -366,7 +366,7 @@ void stop_iot()
         // with a timeout, and keep trying until it works or we try so many times that
         // it is clear it will not work in a reasonable amount of time.
         const auto max_kill_tries = 10; // arbitrarily chosen - the best way to choose stuff!
-        for(auto i = 0; i < max_kill_tries; i++)
+        for (auto i = 0; i < max_kill_tries; i++)
         {
             // Send the kill message
             util::log_info("Killing IoT connection.");

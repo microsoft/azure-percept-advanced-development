@@ -28,7 +28,7 @@ and are likely to be accepted:
 * Adding tests
 * New model support
 
-In particular, adding new model support is likely to survive changes to the code as we move to public preview and onto
+In particular, adding new model support is likely to survive changes to the code as we move through public preview and onto
 general availability.
 
 We welcome all contributions with adequite testing and justification, but please keep in mind that:
@@ -49,7 +49,8 @@ They have never been officially enforced (why be dogmatic?), but please do try t
 
 * Line length doesn't really matter these days. Don't split a long line up just because it hits
   some arbitrary line length. Split it up if it *feels* like it should be split up.
-* Macros and typedefs should be `ALL_CAPS_WITH_UNDERSCORES`. Same with module-level constants.
+* Macros should be `ALL_CAPS_WITH_UNDERSCORES`. Same with module-level constants (or constants
+  exposed in header files).
 * Variables should be `snake_case_not_camel_case` and should be as descriptive as necessary.
   Please don't name your variables `a` and `b`, unless you are coding from an equation in a
   paper, in which case please use comments to explain.

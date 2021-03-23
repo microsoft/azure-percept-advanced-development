@@ -72,7 +72,7 @@ trained for general object detection on the COCO dataset. But there are a few ot
 for the models that we officially guarantee (because we host them and test them on every release).
 
 To use these models, you can download them through the Azure Percept Studio, or you can paste the URLs into your Module Twin
-as the value for "ModelZipUrl".
+as the value for "ModelZipUrl". Not all models are found in the Azure Percept Studio.
 
 | Model            | Source            | License           | URL                    |
 |------------------|-------------------|-------------------|------------------------|

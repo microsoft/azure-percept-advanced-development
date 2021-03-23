@@ -73,7 +73,6 @@ SecureAIParams get_model_params()
     return secure_params;
 }
 
-
 // Note that this method needs to mirror from_string as it serves as a serializer
 std::string SecureAIParams::to_string() const
 {

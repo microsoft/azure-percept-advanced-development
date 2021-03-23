@@ -353,8 +353,6 @@ void compile_and_run(const std::string &video_fpath, const std::string &modelfpa
 } // namespace semseg
 ```
 
-How did I know that that's the code I should put in the header? By looking at `modules/objectdetection/faster_rcnn.hpp`.
-
 Each of the arguments to the single function that we need to implement is explained in the header file, but
 to be more verbose:
 
