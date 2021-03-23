@@ -2,9 +2,10 @@
 
 **Please note!** The experiences in this repository should be considered to be in **preview/beta**.
 Significant portions of these experiences are subject to change without warning. **No part of this code should be considered stable**.
-Although this device is in public preview, if you are using these advanced experiences, we would like your feedback. If you have not
-[registered for *private* preview](https://go.microsoft.com/fwlink/?linkid=2156349), please consider doing so before using this functionality
-so that we can better track who is using it and how, and so that you can have a say in the changes we make to these experiences.
+
+Please consider providing feedback
+via this [questionnaire](https://forms.office.com/Pages/ResponsePage.aspx?id=v4j5cvGGr0GRqy180BHbRzoJxrXKT0dEvfQyxsA0h8lUMzE0V0pCTFU4UUVSS0xTRUtNT0hZSEs1Ry4u).
+Your feedback will help us continue to fine-tune and improve the advanced tools experience.
 
 ## Overview
 

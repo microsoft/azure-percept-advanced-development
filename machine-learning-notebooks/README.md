@@ -2,9 +2,6 @@
 
 **Please note!** The experiences in this repository should be considered to be in **preview/beta**.
 Significant portions of these experiences are subject to change without warning. **No part of this code should be considered stable**.
-Although this device is in public preview, if you are using these advanced experiences, we would like your feedback. If you have not
-[registered for *private* preview](https://go.microsoft.com/fwlink/?linkid=2156349), please consider doing so before using this functionality
-so that we can better track who is using it and how, and so that you can have a say in the changes we make to these experiences.
 
 This folder contains some IPython notebooks that show you how to bring a model that you train yourself to the device.
 Use these instructions as examples to train up a model and bring it to the device so that you don't have to rely on
