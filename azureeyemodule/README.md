@@ -2,9 +2,6 @@
 
 **Please note!** The experiences in this repository should be considered to be in **preview/beta**.
 Significant portions of these experiences are subject to change without warning. **No part of this code should be considered stable**.
-Although this device is in public preview, if you are using these advanced experiences, we would like your feedback. If you have not
-[registered for *private* preview](https://go.microsoft.com/fwlink/?linkid=2156349), please consider doing so before using this functionality
-so that we can better track who is using it and how, and so that you can have a say in the changes we make to these experiences.
 
 ## Table of Contents
 
@@ -39,6 +36,7 @@ Use `df -h` to check the space on your device. If your /var partition is full, y
 ## Architecture
 
 ### Overview
+![](../images/eye-diagram.PNG)
 
 The Percept Workload on the Azure Percept is a C++ application that runs inside a Docker container, which itself runs on
 [Mariner OS](https://github.com/microsoft/CBL-Mariner) as part of the Azure IoT suite of modules running on the Azure Percept device.
