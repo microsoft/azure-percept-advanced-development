@@ -36,7 +36,7 @@ Use `df -h` to check the space on your device. If your /var partition is full, y
 ## Architecture
 
 ### Overview
-![](./images/eye-diagram.PNG)
+![](../images/eye-diagram.PNG)
 
 The Percept Workload on the Azure Percept is a C++ application that runs inside a Docker container, which itself runs on
 [Mariner OS](https://github.com/microsoft/CBL-Mariner) as part of the Azure IoT suite of modules running on the Azure Percept device.
