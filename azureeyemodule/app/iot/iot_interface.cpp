@@ -12,7 +12,6 @@
 #include <sstream>
 #include <thread>
 #include <unordered_map>
-#include <gst/gst.h>
 
 // Third party includes
 #include "iothub_module_client_ll.h"
@@ -142,110 +141,45 @@ static bool filter_msg_by_telemetry_intervals(const MsgChannel &channel)
     }
 }
 
-/** Parses the given ONVIF control message and returns a dict of 'token': 'value for that token' */
-static inline std::unordered_map<std::string, std::string> parse_onvif_message(const std::string &msg)
-{
-    // The input string will be something like "-fps_50-s_native"
-    // This naive format works for something as simple as this for now, but we should really consider
-    // using a better serialization/deserialization mechanism.
-
-    const std::string delimiter1 = "-"; // the delimiter to seperate different feature
-    const std::string delimiter2 = "_"; // the delimiter to deperate different parameters for each feature
-    std::string dup = std::string(msg);
-
-    // Tokenize the string into a vector of strings
-    std::vector<std::string> tokens_and_values;
-    size_t pos = 0;
-    while ((pos = dup.find_first_of(delimiter1)) != std::string::npos)
-    {
-        std::string part = dup.substr(0, pos);
-        if (part.length() > 0)
-        {
-            tokens_and_values.push_back(part + "_");
-        }
-        dup.erase(0, pos + 1);
-    }
-
-    // There should be one more part at the end
-    tokens_and_values.push_back(dup + "_");
-
-    // Now go through the vector of strings and convert it into a map
-
-    std::unordered_map<std::string, std::string> result;
-    for (size_t i = 0; i < tokens_and_values.size(); i++)
-    {
-        std::string curtok;
-        int count = 0;
-        pos = 0;
-        while ((pos = tokens_and_values[i].find_first_of(delimiter2)) != std::string::npos)
-        {
-            std::string part = tokens_and_values[i].substr(0, pos);
-            if (part.length() > 0)
-            {
-                switch (count) 
-                {
-                    case(0):
-                        curtok = part;
-                        break;
-                    case(1):
-                        result[curtok] = part;
-                        break;
-                    case(2):
-                    // the only feature by far take in two parameters is snapshot
-                        if (curtok != "snapshot") 
-                        {
-                            util::log_error("Malformed ONVIF control message: " +msg);
-                        }
-                        //result[curtok] = result[curtok] + "/" + part;
-                        result[curtok] = part;
-                        break;
-                    default:
-                        util::log_error("Malformed ONVIF control message: " +msg);
-                }
-            }
-            tokens_and_values[i].erase(0, pos + 1);
-            count += 1;
-        }
-    }
-    return result;
-}
-
 /** RECV_MSG message handler. Handles incoming messages for the ONVIF channel. */
 static IOTHUBMESSAGE_DISPOSITION_RESULT receive_onvif_message(IOTHUB_MESSAGE_HANDLE message, void *unused)
 {
-    const unsigned char* buffer = 0;
-    size_t s = 256;
-    IoTHubMessage_GetByteArray(message, &buffer, &s);
-    char str[s +1];
+    const unsigned char* buffer = nullptr;
+    size_t s;
+    if (IoTHubMessage_GetByteArray(message, &buffer, &s) != IOTHUB_MESSAGE_OK){
+        util::log_error("Try to get  message content but failed.");
+        return IOTHUBMESSAGE_REJECTED;
+    }
+    char* str = (char *) malloc(s + 1);
     memcpy(str, buffer, s);
-    str[s] = 0;
+    str[s] = '\0';
     JSON_Value *root_value = json_parse_string(reinterpret_cast<const char*>(str));
     JSON_Object *root_object = json_value_get_object(root_value);
     util::log_info("Got an ONVIF control message: " + std::string(str));
+    free(str);
 
     // Set stuff based on results
     if (json_object_get_value(root_object, "snapshot") != nullptr)
     {
-        printf("accept taking snapshot \n\n");
         std::string type  = json_object_get_string(root_object, "snapshot");
         if (type == "raw")
         {
             rtsp::take_snapshot(rtsp::StreamType::RAW);
         }
-        else if ("result")
+        else if (type == "result")
         {
             rtsp::take_snapshot(rtsp::StreamType::RESULT);
         }
         else
         {
-            util::log_error("receive a invalid snapshot type request.");
+            util::log_error("Receive a invalid snapshot type request: " + type);
+            return IOTHUBMESSAGE_REJECTED;
         }
     }
            
 
     if (json_object_get_value(root_object, "-fps") != nullptr)
     {
-        printf("accept frame per second change \n\n");
         std::string value  = json_object_get_string(root_object, "-fps");
         try
         {
@@ -261,7 +195,6 @@ static IOTHUBMESSAGE_DISPOSITION_RESULT receive_onvif_message(IOTHUB_MESSAGE_HAN
 
     if (json_object_get_value(root_object, "-s") != nullptr)
     {
-        printf("accept resolution change \n\n");
         std::string value  = json_object_get_string(root_object, "-s");
         if (rtsp::is_valid_resolution(std::string(value)))
         {

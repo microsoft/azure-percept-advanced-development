@@ -49,6 +49,8 @@ void set_stream_params(const StreamType &type, const std::string &resolution);
 void set_stream_params(const StreamType &type, int fps, bool enable);
 void set_stream_params(const StreamType &type, const std::string &resolution, bool enable);
 void set_stream_params(const StreamType &type, const std::string &resolution, int fps, bool enable);
+
+/** This function would write the current frame to a specific location*/
 void take_snapshot(const StreamType &type);
 
 /** Update the RGB frame that we display in the raw RTSP stream. */
