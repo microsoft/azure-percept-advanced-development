@@ -48,9 +48,6 @@ for the models that we officially guarantee (because we host them and test them 
 To use these models, you can download them through the Azure Percept Studio, or you can paste the URLs into your Module Twin
 as the value for "ModelZipUrl".
 
-There are more models than this, but only two of them have a permanent link right now. In the coming weeks,
-we'll post the others.
-
 | Model            | Source            | License           | URL                    |
 |------------------|-------------------|-------------------|------------------------|
 | Faster RCNN ResNet 50 | [Intel Open Model Zoo](https://docs.openvinotoolkit.org/latest/omz_models_public_faster_rcnn_resnet50_coco_faster_rcnn_resnet50_coco.html) | Apache 2.0 | https://aedsamples.blob.core.windows.net/vision/aeddevkitnew/faster-rcnn-resnet50.zip |
