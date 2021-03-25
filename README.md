@@ -48,13 +48,17 @@ for the models that we officially guarantee (because we host them and test them 
 To use these models, you can download them through the Azure Percept Studio, or you can paste the URLs into your Module Twin
 as the value for "ModelZipUrl".
 
-There are more models than this, but only two of them have a permanent link right now. In the coming weeks,
-we'll post the others.
-
 | Model            | Source            | License           | URL                    |
 |------------------|-------------------|-------------------|------------------------|
+| Faster RCNN ResNet 50 | [Intel Open Model Zoo](https://docs.openvinotoolkit.org/latest/omz_models_public_faster_rcnn_resnet50_coco_faster_rcnn_resnet50_coco.html) | Apache 2.0 | https://aedsamples.blob.core.windows.net/vision/aeddevkitnew/faster-rcnn-resnet50.zip |
+| Open Pose        | [Intel Open Model Zoo](https://docs.openvinotoolkit.org/latest/omz_models_intel_human_pose_estimation_0001_description_human_pose_estimation_0001.html) | Apache 2.0 | https://aedsamples.blob.core.windows.net/vision/aeddevkitnew/openpose.zip |
+| Optical Character Recognition | [Intel Open Model Zoo](https://docs.openvinotoolkit.org/2021.1/omz_models_intel_text_detection_0004_description_text_detection_0004.html) and [Intel Open Model Zoo](https://docs.openvinotoolkit.org/2021.1/omz_models_intel_text_recognition_0012_description_text_recognition_0012.html) | Apache 2.0 | https://aedsamples.blob.core.windows.net/vision/aeddevkitnew/ocr.zip |
 | Person Detection | [Intel Open Model Zoo](https://docs.openvinotoolkit.org/latest/omz_models_intel_person_detection_retail_0013_description_person_detection_retail_0013.html) | Apache 2.0 | https://aedsamples.blob.core.windows.net/vision/aeddevkitnew/person-detection-retail-0013.zip |
-| SSD General      | [Intel Open Model Zoo](https://docs.openvinotoolkit.org/latest/omz_models_public_ssdlite_mobilenet_v2_ssdlite_mobilenet_v2.html) | Apache 2.0 | https://aedsamples.blob.core.windows.net/vision/aeddevkitnew/tiny-yolo-v2.zip |
+| Product Detection | Custom Vision | Apache 2.0 | https://aedsamples.blob.core.windows.net/vision/aeddevkitnew/product-detection.zip |
+| SSD General      | [Intel Open Model Zoo](https://docs.openvinotoolkit.org/latest/omz_models_public_ssdlite_mobilenet_v2_ssdlite_mobilenet_v2.html) | Apache 2.0 |https://aedsamples.blob.core.windows.net/vision/aeddevkitnew/ssdlite-mobilenet-v2.zip
+| Tiny YOLOv2 General | [Intel Open Model Zoo](https://docs.openvinotoolkit.org/latest/omz_models_public_yolo_v2_tiny_tf_yolo_v2_tiny_tf.html) | Apache 2.0 | https://aedsamples.blob.core.windows.net/vision/aeddevkitnew/tiny-yolo-v2.zip |
+| Unet for Semantic Segmentation of Bananas (for [this notebook](./machine-learning-notebooks/train-from-scratch/SemanticSegmentationUNet.ipynb)) | Trained from scratch | GPLv3 | https://aedsamples.blob.core.windows.net/vision/aeddevkitnew/binary-unet.zip |
+| Vehicle Detection | Custom Vision | Apache 2.0 | https://aedsamples.blob.core.windows.net/vision/aeddevkitnew/vehicle-detection.zip |
 
 ## Contributing
 
