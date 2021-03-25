@@ -146,7 +146,8 @@ static IOTHUBMESSAGE_DISPOSITION_RESULT receive_onvif_message(IOTHUB_MESSAGE_HAN
 {
     const unsigned char* buffer = nullptr;
     size_t s;
-    if (IoTHubMessage_GetByteArray(message, &buffer, &s) != IOTHUB_MESSAGE_OK){
+    if (IoTHubMessage_GetByteArray(message, &buffer, &s) != IOTHUB_MESSAGE_OK)
+    {
         util::log_error("Try to get  message content but failed.");
         return IOTHUBMESSAGE_REJECTED;
     }
@@ -188,6 +189,7 @@ static IOTHUBMESSAGE_DISPOSITION_RESULT receive_onvif_message(IOTHUB_MESSAGE_HAN
         }
         catch (std::invalid_argument &e)
         {
+            // catch the error if the fps parameter can't be converted to int
             util::log_error("While parsing ONVIF message, could not convert FPS parameter into an integer: " + value);
             return IOTHUBMESSAGE_REJECTED;
         }
@@ -198,9 +200,14 @@ static IOTHUBMESSAGE_DISPOSITION_RESULT receive_onvif_message(IOTHUB_MESSAGE_HAN
         std::string value  = json_object_get_string(root_object, "-s");
         if (rtsp::is_valid_resolution(std::string(value)))
         {
+            // change the model resolution
             iot::update::restart_model_with_new_resolution(std::string(value));
+
+            // reset the rtsp stream resolution, and then disconnect the stream to let the new parameter can be loaded
             rtsp::set_stream_params(rtsp::StreamType::RAW, std::string(value), false);
             rtsp::set_stream_params(rtsp::StreamType::RESULT, std::string(value), false);
+
+            // restart the rtsp stream
             rtsp::set_stream_params(rtsp::StreamType::RAW,  true);
             rtsp::set_stream_params(rtsp::StreamType::RESULT, true);
         }
