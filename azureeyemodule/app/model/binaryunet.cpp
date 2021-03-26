@@ -77,18 +77,15 @@ cv::GStreamingCompiled BinaryUnetModel::compile_cv_graph() const
 
     cv::GMat segmentation = cv::gapi::infer<UNetNetwork>(bgr);
 
-    // cv::GOpaque<int64_t> nn_seqno = cv::gapi::streaming::seqNo(segmentation);
-    // cv::GOpaque<int64_t> nn_ts = cv::gapi::streaming::timestamp(segmentation);
     cv::GOpaque<cv::Size> sz = cv::gapi::streaming::size(bgr);
 
     cv::GMat mask = cv::gapi::streaming::PostProcBinaryUnet::on(segmentation);
-    //cv::GMat mask = segmentation;
 
     // Now specify the computation's boundaries
     auto graph = cv::GComputation(cv::GIn(in),
                                     cv::GOut(h264, h264_seqno, h264_ts,      // main path: H264 (~constant framerate)
                                     img,                                     // desynchronized path: BGR
-                                    /*nn_seqno, nn_ts,*/ mask));
+                                    mask));
 
     auto networks = cv::gapi::networks(cv::gapi::mx::Params<UNetNetwork>{this->modelfiles.at(0)});
 
@@ -130,13 +127,6 @@ bool BinaryUnetModel::pull_data(cv::GStreamingCompiled &pipeline)
         this->handle_h264_output(out_h264, out_h264_ts, out_h264_seqno, ofs);
         this->handle_inference_output(out_mask, last_mask, 0.5);
         this->handle_bgr_output(out_bgr, last_bgr, last_mask);
-
-        // Preview
-        if (this->show_output && !last_bgr.empty())
-        {
-            cv::imshow("preview", last_bgr);
-            cv::waitKey(1);
-        }
 
         if (restarting)
         {

@@ -22,8 +22,8 @@
 
 namespace model {
 
-ObjectDetector::ObjectDetector(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show)
-    : AzureEyeModel{ modelfpaths, mvcmd, videofile, resolution, show }, labelfpath(labelfpath), class_labels({})
+ObjectDetector::ObjectDetector(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution)
+    : AzureEyeModel{ modelfpaths, mvcmd, videofile, resolution }, labelfpath(labelfpath), class_labels({})
 {
 }
 
@@ -185,13 +185,6 @@ bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
         this->handle_h264_output(out_h264, out_h264_ts, out_h264_seqno, ofs);
         this->handle_inference_output(out_bgr, out_nn_ts, out_nn_seqno, out_boxes, out_labels, out_confidences, out_size, last_boxes, last_labels, last_confidences);
         this->handle_bgr_output(out_bgr, last_bgr, last_boxes, last_labels, last_confidences);
-
-        // Preview
-        if (this->show_output && !last_bgr.empty())
-        {
-            cv::imshow("preview", last_bgr);
-            cv::waitKey(1);
-        }
 
         if (this->restarting)
         {

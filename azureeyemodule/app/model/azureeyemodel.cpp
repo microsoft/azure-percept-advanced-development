@@ -21,8 +21,8 @@
 
 namespace model {
 
-AzureEyeModel::AzureEyeModel(const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show)
-    : modelfiles(modelfpaths), mvcmd(mvcmd), videofile(videofile), resolution(resolution), show_output(show)
+AzureEyeModel::AzureEyeModel(const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution)
+    : modelfiles(modelfpaths), mvcmd(mvcmd), videofile(videofile), resolution(resolution)
 {
     // Nothing to do
 }

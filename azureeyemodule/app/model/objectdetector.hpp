@@ -26,7 +26,7 @@ namespace model {
 class ObjectDetector : public AzureEyeModel
 {
 public:
-    ObjectDetector(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show);
+    ObjectDetector(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution);
     virtual ~ObjectDetector();
 
 protected:

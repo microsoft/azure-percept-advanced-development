@@ -20,7 +20,7 @@ namespace model {
 class AzureEyeModel
 {
 public:
-    AzureEyeModel(const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show);
+    AzureEyeModel(const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution);
 
     virtual ~AzureEyeModel();
 
@@ -108,9 +108,6 @@ protected:
 
     /** A status message to display on the RTSP feed */
     std::string status_msg = "";
-
-    /** Should we show output? */
-    bool show_output = false;
 
     /** If this gets set to true, we stop the pipeline and return from the run function */
     volatile bool restarting = false;
