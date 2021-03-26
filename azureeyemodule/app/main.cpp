@@ -45,8 +45,7 @@ const std::string keys =
 "{ q quit   | false  | If given, we quit on error, rather than loading a default model. Useful for testing }"
 "{ p parser | ssd100 | Parser kind required for input model. Possible values: ssd100, ssd200, yolo, classification, s1, openpose, onnxssd, faster-rcnn-resnet50, unet, ocr }"
 "{ s size   | native | Output video resolution. Possible values: native, 1080p, 720p }"
-"{ fps      | 10     | Output video frame rate. }"
-"{ show     | false  | Show output BGR image. Requires graphical environment }";
+"{ fps      | 10     | Output video frame rate. }";
 
 const std::map<std::string, cv::gapi::mx::Camera::Mode> modes = {
     {"native", cv::gapi::mx::Camera::MODE_NATIVE},
@@ -121,39 +120,39 @@ static void interrupt(int sig)
 }
 
 static void determine_model_type(const std::string &labelfile, const std::vector<std::string> &modelfiles, const std::string &mvcmd,
-                                 const std::string &videofile, const model::parser::Parser &parser_type, const cv::gapi::mx::Camera::Mode &resolution, bool show, bool quit_on_failure)
+                                 const std::string &videofile, const model::parser::Parser &parser_type, const cv::gapi::mx::Camera::Mode &resolution, bool quit_on_failure)
 {
     the_model = nullptr;
     switch (parser_type)
     {
         case model::parser::Parser::CLASSIFICATION:
-            the_model = new model::ClassificationModel(labelfile, modelfiles, mvcmd, videofile, resolution, show);
+            the_model = new model::ClassificationModel(labelfile, modelfiles, mvcmd, videofile, resolution);
             break;
         case model::parser::Parser::OPENPOSE:
-            the_model = new model::OpenPoseModel(modelfiles, mvcmd, videofile, resolution, show);
+            the_model = new model::OpenPoseModel(modelfiles, mvcmd, videofile, resolution);
             break;
         case model::parser::Parser::OCR:
-            the_model = new model::OCRModel(modelfiles, mvcmd, videofile, resolution, show);
+            the_model = new model::OCRModel(modelfiles, mvcmd, videofile, resolution);
             break;
         case model::parser::Parser::S1:
-            the_model = new model::S1Model(labelfile, modelfiles, mvcmd, videofile, resolution, show);
+            the_model = new model::S1Model(labelfile, modelfiles, mvcmd, videofile, resolution);
             break;
         case model::parser::Parser::SSD100: // fall-through
         case model::parser::Parser::SSD200: // fall-through
         case model::parser::Parser::DEFAULT:
-            the_model = new model::SSDModel(labelfile, modelfiles, mvcmd, videofile, resolution, show);
+            the_model = new model::SSDModel(labelfile, modelfiles, mvcmd, videofile, resolution);
             break;
         case model::parser::Parser::YOLO:
-            the_model = new model::YoloModel(labelfile, modelfiles, mvcmd, videofile, resolution, show);
+            the_model = new model::YoloModel(labelfile, modelfiles, mvcmd, videofile, resolution);
             break;
         case model::parser::Parser::ONNXSSD:
-            the_model = new model::ONNXSSDModel(labelfile, modelfiles, mvcmd, videofile, resolution, show);
+            the_model = new model::ONNXSSDModel(labelfile, modelfiles, mvcmd, videofile, resolution);
             break;
         case model::parser::Parser::UNET:
-            the_model = new model::BinaryUnetModel(modelfiles, mvcmd, videofile, resolution, show);
+            the_model = new model::BinaryUnetModel(modelfiles, mvcmd, videofile, resolution);
             break;
         case model::parser::Parser::FASTER_RCNN_RESNET50:
-            the_model = new model::FasterRCNNModel(labelfile, modelfiles, mvcmd, videofile, resolution, show);
+            the_model = new model::FasterRCNNModel(labelfile, modelfiles, mvcmd, videofile, resolution);
             break;
         default:
             util::log_error("No parser for the given model type: " + model::parser::to_string(parser_type));
@@ -174,7 +173,7 @@ static void determine_model_type(const std::string &labelfile, const std::vector
 }
 
 /** This function should update the_model to be whatever we've been told to update to via the update callback. */
-static void load_new_model(const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show, bool quit_on_failure)
+static void load_new_model(const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool quit_on_failure)
 {
     std::string labelfile = "";
     std::vector<std::string> modelfiles;
@@ -211,7 +210,7 @@ static void load_new_model(const std::string &mvcmd, const std::string &videofil
     }
 
     // Fill in the model values based on the type
-    determine_model_type(labelfile, modelfiles, mvcmd, videofile, modeltype, resolution, show, quit_on_failure);
+    determine_model_type(labelfile, modelfiles, mvcmd, videofile, modeltype, resolution, quit_on_failure);
 }
 
 /** This function stops the MyriadX pipeline and wait for 2 seconds as Intel suggested */
@@ -257,7 +256,6 @@ int main(int argc, char** argv)
     auto videofile = cmd.get<std::string>("h264_out");
     auto parser_type = model::parser::from_string(cmd.get<std::string>("parser"));
     auto str_resolution = cmd.get<std::string>("size");
-    auto show = cmd.get<bool>("show");
     auto quit_on_failure = cmd.get<bool>("quit");
     auto fps = cmd.get<int>("fps");
 
@@ -299,7 +297,7 @@ int main(int argc, char** argv)
     }
 
     // Fill in `the_model` with the appropriate type of model
-    determine_model_type(labelfile, modelfiles, mvcmd, videofile, parser_type, resolution, show, quit_on_failure);
+    determine_model_type(labelfile, modelfiles, mvcmd, videofile, parser_type, resolution, quit_on_failure);
 
     // See if the device is already opened, if not, open it and authenticate
     bool opened_usb_device = device::open_device();
@@ -353,7 +351,7 @@ int main(int argc, char** argv)
         the_model = nullptr;
 
         // Load a new model
-        load_new_model(mvcmd, videofile, resolution, show, quit_on_failure);
+        load_new_model(mvcmd, videofile, resolution, quit_on_failure);
 
         // Update data collection settings
         update_data_collection_params(data_collection_enabled, data_collection_interval_sec);

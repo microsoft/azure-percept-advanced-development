@@ -18,7 +18,7 @@ class ONNXSSDModel : public ObjectDetector
 {
 public:
     ONNXSSDModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd,
-                 const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show);
+                 const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution);
 
     void run(cv::GStreamingCompiled* pipeline) override;
 

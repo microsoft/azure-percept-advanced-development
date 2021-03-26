@@ -27,8 +27,8 @@ namespace model {
 G_API_NET(SSDNetwork, <cv::GMat(cv::GMat)>, "ssd-network");
 
 
-SSDModel::SSDModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show)
-    : ObjectDetector{ labelfpath, modelfpaths, mvcmd, videofile, resolution, show }
+SSDModel::SSDModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution)
+    : ObjectDetector{ labelfpath, modelfpaths, mvcmd, videofile, resolution }
 {
 }
 

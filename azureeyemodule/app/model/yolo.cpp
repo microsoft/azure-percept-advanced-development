@@ -25,8 +25,8 @@ namespace model {
 /** A YOLO network takes a single input and outputs a single output (which we will parse into boxes, labels, and confidences) */
 G_API_NET(YOLONetwork, <cv::GMat(cv::GMat)>, "yolo-network");
 
-YoloModel::YoloModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show)
-    : ObjectDetector{ labelfpath, modelfpaths, mvcmd, videofile, resolution, show }
+YoloModel::YoloModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution)
+    : ObjectDetector{ labelfpath, modelfpaths, mvcmd, videofile, resolution }
 {
 }
 

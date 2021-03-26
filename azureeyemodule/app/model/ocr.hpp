@@ -26,7 +26,7 @@ namespace model {
 class OCRModel : public AzureEyeModel
 {
 public:
-    OCRModel( const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show);
+    OCRModel( const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution);
 
     void run(cv::GStreamingCompiled* pipeline) override;
 

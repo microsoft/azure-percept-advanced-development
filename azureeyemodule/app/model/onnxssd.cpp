@@ -72,8 +72,8 @@ namespace model {
 G_API_NET(IntelONNXSSD, <cv::GMat(cv::GMat)>, "com.intel.onnx.ssd");
 
 ONNXSSDModel::ONNXSSDModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd,
-             const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show)
-    : ObjectDetector{ labelfpath, modelfpaths, mvcmd, videofile, resolution, show }, onnxfpath(modelfpaths.at(0))
+             const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution)
+    : ObjectDetector{ labelfpath, modelfpaths, mvcmd, videofile, resolution }, onnxfpath(modelfpaths.at(0))
 {
     //You should specify the model file (e.g. "-p=onnxssd -m=/app/data/ssd_mobilenet_v1_10.onnx"),
     //or the app will roll back to default mode
@@ -169,13 +169,6 @@ bool ONNXSSDModel::pull_data(cv::GStreamingCompiled &pipeline){
             this->handle_inference_output(out_bgr, out_bgr_ts, out_bgr_seqno, out_boxes, out_labels, out_confidences, out_size, last_boxes, last_labels, last_confidences);
         }
         this->handle_bgr_output(out_bgr, last_bgr, last_boxes, last_labels, last_confidences);
-
-        // Preview
-        if (this->show_output && !last_bgr.empty())
-        {
-            cv::imshow("preview", last_bgr);
-            cv::waitKey(1);
-        }
 
         if (this->restarting)
         {

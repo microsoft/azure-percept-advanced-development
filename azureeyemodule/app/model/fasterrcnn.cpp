@@ -33,8 +33,8 @@ namespace model {
 G_API_NET(FasterRCNNNetwork, <cv::GMat(cv::GMat)>, "faster-rcnn-network");
 
 
-FasterRCNNModel::FasterRCNNModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show)
-    : ObjectDetector{ labelfpath, modelfpaths, mvcmd, videofile, resolution, show }
+FasterRCNNModel::FasterRCNNModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution)
+    : ObjectDetector{ labelfpath, modelfpaths, mvcmd, videofile, resolution }
 {
 }
 
