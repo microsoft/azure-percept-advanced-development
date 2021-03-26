@@ -12,6 +12,7 @@
 #include <gst/rtsp-server/rtsp-server.h>
 #include <opencv2/core/utility.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/opencv.hpp>
 
 // Local includes
 #include "rtsp.hpp"
@@ -763,4 +764,22 @@ void set_stream_params(const StreamType &type, const std::string &resolution, in
     set_stream_params(type, fps);
 }
 
+void take_snapshot(const StreamType &type)
+{
+    cv::Mat snapshot;
+    switch (type)
+    {
+        case (StreamType::RAW):
+            snapshot = get_buffer(rtsp_raw_udp_source_name);
+            cv::imwrite("/snapshot/snapshot.jpg", snapshot);
+            break;
+        case (StreamType::RESULT):
+            snapshot = get_buffer(rtsp_result_udp_source_name);
+            cv::imwrite("/snapshot/snapshot.jpg", snapshot);
+            break;
+        default:
+            util::log_error("invalid stream type.");
+            break;
+    }
+}
 } // namespace rtsp
