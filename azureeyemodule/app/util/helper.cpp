@@ -4,11 +4,14 @@
 // Standard library includes
 #include <algorithm>
 #include <chrono>
+#include <ctime>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <queue>
 #include <sstream>
 #include <string>
+#include <vector>
 
 // Third party includes
 #include <opencv2/core/utility.hpp>
@@ -27,19 +30,19 @@ bool file_exists(const std::string &filename)
     return file.good();
 }
 
-void log_error(std::string str)
+void log_error(const std::string &str)
 {
     time_t t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     std::cout << std::put_time(std::localtime(&t), "%Y-%m-%d %X") << " ERROR: " << str << std::endl;
 }
 
-void log_info(std::string str)
+void log_info(const std::string &str)
 {
     time_t t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     std::cout << std::put_time(std::localtime(&t), "%Y-%m-%d %X") << " " << str << std::endl;
 }
 
-void log_debug(std::string str)
+void log_debug(const std::string &str)
 {
     if (verbose_logging)
     {
@@ -169,6 +172,79 @@ std::vector<std::string> splice_comma_separated_list(const std::string &list_str
     }
 
     return result;
+}
+
+AdaptiveLogger::AdaptiveLogger()
+    : last_timestamp(std::chrono::milliseconds(0)), threshold(std::chrono::milliseconds(0))
+{
+}
+
+void AdaptiveLogger::log_info(const std::string &msg)
+{
+    bool log_this_msg = this->adapt();
+    if (log_this_msg)
+    {
+        util::log_info(msg);
+    }
+}
+
+void AdaptiveLogger::log_error(const std::string &msg)
+{
+    bool log_this_msg = this->adapt();
+    if (log_this_msg)
+    {
+        util::log_error(msg);
+    }
+}
+
+void AdaptiveLogger::log_debug(const std::string &msg)
+{
+    bool log_this_msg = this->adapt();
+    if (log_this_msg)
+    {
+        util::log_debug(msg);
+    }
+}
+
+bool AdaptiveLogger::adapt()
+{
+    bool should_log;
+
+    // Get current timestamp
+    std::chrono::milliseconds timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+
+    // Compare against the last successful timestamp
+    std::chrono::milliseconds ms_since_last_log = std::chrono::duration_cast<std::chrono::milliseconds>(timestamp - this->last_timestamp);
+
+    // If the last time we logged was longer ago than threshold, we can log again.
+    if (ms_since_last_log > this->threshold)
+    {
+        this->threshold = std::chrono::duration_cast<std::chrono::milliseconds>(1.5 * this->threshold);
+        should_log = true;
+    }
+    else
+    {
+        should_log = false;
+    }
+
+    // Clamp the threshold to min and max
+    if (this->threshold < std::chrono::milliseconds(5))
+    {
+        this->threshold = std::chrono::milliseconds(5);
+    }
+    else if (this->threshold > this->maximum)
+    {
+        this->threshold = this->maximum;
+    }
+
+    // Update last successful timestamp
+    if (should_log)
+    {
+        this->last_timestamp = timestamp;
+        util::log_info("Logging a verbose message. Next time allowed to log will be in " + std::to_string(this->threshold.count()) + " ms.");
+    }
+
+    return should_log;
 }
 
 } // namespace util

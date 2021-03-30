@@ -43,7 +43,7 @@ private:
     void handle_inference_output(const cv::optional<cv::Mat> &out_mask,
                                     cv::Mat &last_mask,
                                     float threshold = 0.5
-                                    ) const;
+                                    );
 
     /** Print out all the model's meta information. */
     void log_parameters() const;

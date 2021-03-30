@@ -192,8 +192,6 @@ void OpenPoseModel::handle_bgr_output(cv::optional<cv::Mat> &out_bgr, cv::Mat &l
         return;
     }
 
-    util::log_debug("bgr: size=" + util::to_size_string(out_bgr.value()));
-
     last_bgr = *out_bgr;
 
     cv::Mat original_bgr;
@@ -270,7 +268,7 @@ void OpenPoseModel::preview(cv::Mat &bgr, const std::vector<pose::HumanPose> &po
 }
 
 void OpenPoseModel::handle_inference_output(const cv::optional<cv::Mat> &out_nn, const cv::optional<int64_t> &out_nn_ts, const cv::optional<int64_t> &out_nn_seqno,
-                                            const cv::optional<std::vector<pose::HumanPose>> &out_poses, std::vector<pose::HumanPose> &last_poses) const
+                                            const cv::optional<std::vector<pose::HumanPose>> &out_poses, std::vector<pose::HumanPose> &last_poses)
 {
     if (!out_nn_ts.has_value())
     {
@@ -300,7 +298,7 @@ void OpenPoseModel::handle_inference_output(const cv::optional<cv::Mat> &out_nn,
 
     last_poses = std::move(*out_poses);
 
-    util::log_info("nn: seqno=" + std::to_string(*out_nn_seqno) + ", ts=" + std::to_string(*out_nn_ts) + ", " + msg);
+    this->log_inference(msg);
     iot::msgs::send_message(iot::msgs::MsgChannel::NEURAL_NETWORK, msg);
 }
 

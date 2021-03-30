@@ -295,16 +295,6 @@ static void need_data_callback(GstElement *appsrc, guint unused, StreamParameter
     GST_BUFFER_DURATION(buffer) = gst_util_uint64_scale_int(1, GST_SECOND, params->fps);
     params->timestamp += GST_BUFFER_DURATION(buffer);
 
-    // Debug log the time stamp
-    if (params->stream_type == StreamType::RAW)
-    {
-        util::log_debug("RTSP buffer pushed to RAW with timestamp " + std::to_string(params->timestamp / 1000000) + " (ms)");
-    }
-    else if (params->stream_type == StreamType::RESULT)
-    {
-        util::log_debug("RTSP buffer pushed to RESULT with timestamp " + std::to_string(params->timestamp / 1000000) + " (ms)");
-    }
-
     // Push the RGB frame into the pipeline
     GstFlowReturn ret;
     g_signal_emit_by_name(appsrc, "push-buffer", buffer, &ret);
@@ -350,10 +340,6 @@ static void need_data_callback_h264(GstElement *appsrc, guint unused, StreamPara
     if (ret != GST_FLOW_OK)
     {
         util::log_error("Got an unexpected return value from pushing the h.264 frame to Gstreamer pipeline: " + std::to_string(ret));
-    }
-    else
-    {
-        util::log_debug("RTSP buffer pushed to H.264 with size " + std::to_string(size) + " and timestamp " + std::to_string(frame.timestamp));
     }
 
     // If we have any more frames behind this one, let's pop this one.
