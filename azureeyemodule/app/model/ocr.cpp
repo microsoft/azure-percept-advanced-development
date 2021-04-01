@@ -177,11 +177,8 @@ void OCRModel::handle_bgr_output(cv::optional<cv::Mat> &out_bgr, cv::Mat &last_b
     // BGR output: visualize and optionally display
     if (!out_bgr.has_value())
     {
-        util::log_debug("debug: out_bgr does not have value");
         return;
     }
-
-    util::log_debug("bgr: size=" + util::to_size_string(out_bgr.value()));
 
     last_bgr = *out_bgr;
 
@@ -193,7 +190,6 @@ void OCRModel::handle_bgr_output(cv::optional<cv::Mat> &out_bgr, cv::Mat &last_b
 
     if (this->status_msg.empty())
     {
-        std::cout<<"Updating Data Result using RTSP"<<std::endl;
         rtsp::update_data_result(last_bgr);
     }
     else
@@ -260,8 +256,8 @@ void OCRModel::handle_inference_output(const cv::optional<int64_t> &out_nn_ts, c
     {
         // Decode the recognized text in the rectangle
         auto decoded = this->OCRDecoder.decode(temp_text[label_idx]);
-        util::log_info("text: \"" + decoded.text + "\"");
-        if(decoded.conf > 0.2)
+        this->log_inference("Text: \"" + decoded.text + "\"");
+        if (decoded.conf > 0.2)
         {
             curr_textresults.push_back(decoded.text);
             curr_rcsresults.push_back(temp_rcs[label_idx]);
@@ -283,7 +279,7 @@ void OCRModel::handle_inference_output(const cv::optional<int64_t> &out_nn_ts, c
 
     msg.append("]}");
 
-    // Send all result into last_text and then dump all curr text res
+    // Send all result into last_text and then dump all curr text results
     if(curr_textresults.size() > 0)
     {
         last_text = std::move(curr_textresults);
@@ -295,7 +291,7 @@ void OCRModel::handle_inference_output(const cv::optional<int64_t> &out_nn_ts, c
         last_rcs = {};
     }
 
-    util::log_info("nn: seqno=" + std::to_string(*out_nn_seqno) + ", ts=" + std::to_string(*out_nn_ts) + ", " + msg);
+    // Send resulting message over IoT
     iot::msgs::send_message(iot::msgs::MsgChannel::NEURAL_NETWORK, msg);
 }
 
