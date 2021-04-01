@@ -34,8 +34,8 @@ using GMat2 = std::tuple<cv::GMat, cv::GMat>;
 G_API_NET(TextDetection, <GMat2(cv::GMat)>, "sample.custom.text_detect");
 G_API_NET(TextRecognition, <cv::GMat(cv::GMat)>,"sample.custom.text_recogn");
 
-OCRModel::OCRModel(const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show)
-        :AzureEyeModel{ modelfpaths, mvcmd, videofile, resolution, show }, OCRDecoder(ocr::TextDecoder {0, "0123456789abcdefghijklmnopqrstuvwxyz#", '#'})
+OCRModel::OCRModel(const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution)
+        :AzureEyeModel{ modelfpaths, mvcmd, videofile, resolution }, OCRDecoder(ocr::TextDecoder {0, "0123456789abcdefghijklmnopqrstuvwxyz#", '#'})
         {
         }
 
@@ -151,14 +151,6 @@ bool OCRModel::pull_data(cv::GStreamingCompiled &pipeline)
         this->handle_h264_output(out_h264, out_h264_ts, out_h264_seqno, ofs);
 		this->handle_bgr_output(out_bgr, last_bgr, last_rcs, last_text);
         this->handle_inference_output(out_nn_ts, out_nn_seqno, out_txtrcs, last_rcs, out_text, last_text);
-
-
-        // Preview
-        if (this->show_output && !last_bgr.empty())
-        {
-            cv::imshow("preview", last_bgr);
-            cv::waitKey(1);
-        }
 
         if (this->restarting)
         {

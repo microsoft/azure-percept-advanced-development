@@ -28,8 +28,8 @@ namespace model {
 /** A classification network takes a single input and outputs a single output (which we will parse into labels and confidences) */
 G_API_NET(ClassificationNetwork, <cv::GMat(cv::GMat)>, "classification-network");
 
-ClassificationModel::ClassificationModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show)
-    : AzureEyeModel{ modelfpaths, mvcmd, videofile, resolution, show }, labelfpath(labelfpath), class_labels({})
+ClassificationModel::ClassificationModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution)
+    : AzureEyeModel{ modelfpaths, mvcmd, videofile, resolution }, labelfpath(labelfpath), class_labels({})
 {
 }
 
@@ -139,13 +139,6 @@ bool ClassificationModel::pull_data(cv::GStreamingCompiled &pipeline)
         this->handle_h264_output(out_h264, out_h264_ts, out_h264_seqno, ofs);
         this->handle_inference_output(out_nn, out_nn_ts, out_nn_seqno, out_labels, out_confidences, last_labels, last_confidences);
         this->handle_bgr_output(out_bgr, last_bgr, last_labels, last_confidences);
-
-        // Preview
-        if (this->show_output && !last_bgr.empty())
-        {
-            cv::imshow("preview", last_bgr);
-            cv::waitKey(1);
-        }
 
         if (restarting)
         {

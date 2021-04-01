@@ -24,7 +24,7 @@ namespace model {
 class SSDModel : public ObjectDetector
 {
 public:
-    SSDModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show);
+    SSDModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution);
 
     /**
      * The SSD model acts as our default model in case we don't get direction

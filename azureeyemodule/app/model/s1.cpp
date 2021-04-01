@@ -26,8 +26,8 @@ namespace model {
 using MOInfo = std::tuple<cv::GMat, cv::GMat>;
 G_API_NET(MultiOutput, <MOInfo(cv::GMat)>, "s1-network");
 
-S1Model::S1Model(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show)
-    : ObjectDetector{ labelfpath, modelfpaths, mvcmd, videofile, resolution, show }
+S1Model::S1Model(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution)
+    : ObjectDetector{ labelfpath, modelfpaths, mvcmd, videofile, resolution }
 {
 }
 
