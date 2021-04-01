@@ -160,8 +160,6 @@ void ClassificationModel::handle_bgr_output(cv::optional<cv::Mat> &out_bgr, cv::
         return;
     }
 
-    util::log_debug("bgr: size=" + util::to_size_string(out_bgr.value()));
-
     last_bgr = *out_bgr;
 
     cv::Mat original_bgr;
@@ -207,7 +205,7 @@ void ClassificationModel::preview(const cv::Mat &rgb, const std::vector<int> &la
 void ClassificationModel::handle_inference_output(const cv::optional<cv::Mat> &out_nn, const cv::optional<int64_t> &out_nn_ts, const cv::optional<int64_t> &out_nn_seqno,
                                                   const cv::optional<std::vector<int>> &out_labels,
                                                   const cv::optional<std::vector<float>> &out_confidences, std::vector<int> &last_labels,
-                                                  std::vector<float> &last_confidences) const
+                                                  std::vector<float> &last_confidences)
 {
     if (!out_nn_ts.has_value())
     {
@@ -221,23 +219,32 @@ void ClassificationModel::handle_inference_output(const cv::optional<cv::Mat> &o
     CV_Assert(out_labels.has_value());
     CV_Assert(out_confidences.has_value());
 
+    // Compose a single message for each detection, which follows this schema:
+    //
+    // {
+    //      "label": string. Class label of the detected object,
+    //      "confidence": float. Confidence of the detection,
+    //      "timestamp": int. Timestamp of the detection.
+    // }
+    //
+    // Push each of these detection messages into a vector.
     std::vector<std::string> messages;
-
     for (std::size_t i = 0; i < out_labels->size(); i++)
     {
-        std::string str = std::string("{");
+        auto label = util::get_label(out_labels.value()[i], this->class_labels);
+        auto confidence = std::to_string(out_confidences.value()[i]);
+        auto timestamp = std::to_string(*out_nn_ts);
 
-        str.append("\"label\": \"").append(util::get_label(out_labels.value()[i], this->class_labels)).append("\", ")
-            .append("\"confidence\": \"").append(std::to_string(out_confidences.value()[i])).append("\", ")
-            .append("\"timestamp\": \"").append(std::to_string(*out_nn_ts)).append("\"")
-            .append("}");
+        std::string str = std::string("{");
+        str.append("\"label\": \"").append(label).append("\", ")
+           .append("\"confidence\": \"").append(confidence).append("\", ")
+           .append("\"timestamp\": \"").append(timestamp).append("\"")
+           .append("}");
 
         messages.push_back(str);
     }
 
-    last_labels = std::move(*out_labels);
-    last_confidences = std::move(*out_confidences);
-
+    // Wrap the detection messages into a list. The send_message() function will wrap it back into curly braces for you.
     std::string str = std::string("[");
     for (size_t i = 0; i < messages.size(); i++)
     {
@@ -249,9 +256,13 @@ void ClassificationModel::handle_inference_output(const cv::optional<cv::Mat> &o
     }
     str.append("]");
 
-    util::log_info("nn: seqno=" + std::to_string(*out_nn_seqno) + ", ts=" + std::to_string(*out_nn_ts) + ", " + str);
-
+    // Send the message over IoT
     iot::msgs::send_message(iot::msgs::MsgChannel::NEURAL_NETWORK, str);
+    this->log_inference(str);
+
+    // Update the cached labels and confidences now that we have new ones.
+    last_labels = std::move(*out_labels);
+    last_confidences = std::move(*out_confidences);
 }
 
 void ClassificationModel::log_parameters() const

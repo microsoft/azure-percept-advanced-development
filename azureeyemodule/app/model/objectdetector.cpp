@@ -3,6 +3,8 @@
 
 // Standard library includes
 #include <fstream>
+#include <iomanip>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -39,8 +41,6 @@ void ObjectDetector::handle_bgr_output(cv::optional<cv::Mat> &out_bgr, cv::Mat &
     {
         return;
     }
-
-    util::log_debug("bgr: size=" + util::to_size_string(out_bgr.value()));
 
     last_bgr = *out_bgr;
 
@@ -88,7 +88,7 @@ void ObjectDetector::preview(const cv::Mat& rgb, const std::vector<cv::Rect>& bo
 void ObjectDetector::handle_inference_output(const cv::optional<cv::Mat> &out_bgr, const cv::optional<int64_t> &out_nn_ts, const cv::optional<int64_t> &out_nn_seqno,
                                               const cv::optional<std::vector<cv::Rect>> &out_boxes, const cv::optional<std::vector<int>> &out_labels,
                                               const cv::optional<std::vector<float>> &out_confidences, const cv::optional<cv::Size> &out_size, std::vector<cv::Rect> &last_boxes, std::vector<int> &last_labels,
-                                              std::vector<float> &last_confidences) const
+                                              std::vector<float> &last_confidences)
 {
     if (!out_nn_ts.has_value())
     {
@@ -105,34 +105,45 @@ void ObjectDetector::handle_inference_output(const cv::optional<cv::Mat> &out_bg
     CV_Assert(out_size.has_value());
 
     // Compose a message for each item we detected
+    // Each object adheres to the following schema
+    //
+    // {
+    //      "bbox": list of the form [float, float, float, float]. This is an object's bounding box (x0, y0, x1, y1),
+    //      "label": string. Class label of the detected object,
+    //      "confidence": float. Confidence of the network,
+    //      "timestamp": int. Timestamp for this detection.
+    // }
     std::vector<std::string> messages;
     for (std::size_t i = 0; i < out_labels->size(); i++)
     {
-        std::string str = std::string("{");
-
+        // Bounding box is in (x, y, w, h), normalized coordinates.
         cv::Rect rect = out_boxes.value()[i];
-        cv::Rect2f rect_abs(static_cast<float>(rect.x) / out_size->width,
-            static_cast<float>(rect.y) / out_size->height,
-            static_cast<float>(rect.width) / out_size->width,
-            static_cast<float>(rect.height) / out_size->height);
 
-        static char buf[500];
-        snprintf(buf, 500, "\"bbox\": [%.3f, %.3f, %.3f, %.3f]", rect_abs.x, rect_abs.y, rect_abs.x + rect_abs.width, rect_abs.y + rect_abs.height);
-        str.append(buf)
-            .append(",");
+        // Convert to (x, y, w, h) absolute pixel coordinates.
+        cv::Rect2f rect_abs(static_cast<float>(rect.x) / out_size->width, static_cast<float>(rect.y) / out_size->height, static_cast<float>(rect.width) / out_size->width, static_cast<float>(rect.height) / out_size->height);
 
-        str.append("\"label\": \"").append(util::get_label(out_labels.value()[i], this->class_labels)).append("\", ")
-           .append("\"confidence\": \"").append(std::to_string(out_confidences.value()[i])).append("\", ")
-           .append("\"timestamp\": \"").append(std::to_string(*out_nn_ts)).append("\"")
+        // Convert bounding box to string of form (x0, y0, x1, y1) coordinates.
+        std::stringstream bboxstr;
+        auto x0 = rect_abs.x;
+        auto y0 = rect_abs.y;
+        auto x1 = rect_abs.x + rect_abs.width;
+        auto y1 = rect_abs.y + rect_abs.height;
+        bboxstr << std::fixed << std::setprecision(3) << "\"bbox\": [" << x0 << ", " << y0 << ", " << x1 << ", " << y1 << "]";
+
+        // Get the label
+        auto label = util::get_label(out_labels.value()[i], this->class_labels);
+        auto confidence = std::to_string(out_confidences.value()[i]);
+        auto timestamp = std::to_string(*out_nn_ts);
+
+        std::string str = std::string("{");
+        str.append(bboxstr.str()).append(",")
+           .append("\"label\": \"").append(label).append("\", ")
+           .append("\"confidence\": \"").append(confidence).append("\", ")
+           .append("\"timestamp\": \"").append(timestamp).append("\"")
            .append("}");
 
         messages.push_back(str);
     }
-
-    // Update our last items
-    last_boxes = std::move(*out_boxes);
-    last_labels = std::move(*out_labels);
-    last_confidences = std::move(*out_confidences);
 
     // Compose a single string out of all the detection messages
     std::string str = std::string("[");
@@ -146,10 +157,15 @@ void ObjectDetector::handle_inference_output(const cv::optional<cv::Mat> &out_bg
     }
     str.append("]");
 
-    util::log_info("nn: seqno=" + std::to_string(*out_nn_seqno) + ", ts=" + std::to_string(*out_nn_ts) + ", " + str);
+    this->log_inference("nn: seqno=" + std::to_string(*out_nn_seqno) + ", ts=" + std::to_string(*out_nn_ts) + ", " + str);
 
-    // Send out the detection message to anyone who's listening
+    // Send out the detection message to anyone who's listening (this will add curly braces around the inference message)
     iot::msgs::send_message(iot::msgs::MsgChannel::NEURAL_NETWORK, str);
+
+    // Update our cache of items now that we have new ones
+    last_boxes = std::move(*out_boxes);
+    last_labels = std::move(*out_labels);
+    last_confidences = std::move(*out_confidences);
 }
 
 bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)

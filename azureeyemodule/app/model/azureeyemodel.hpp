@@ -10,6 +10,7 @@
 
 // Local includes
 #include "parser.hpp"
+#include "../util/helper.hpp"
 #include "../util/timing.hpp"
 
 namespace model {
@@ -118,6 +119,9 @@ protected:
     /** Write the H264 outputs to a file if videofile is non-empty and we have a result ready in the out_264 node. Also writes to the RTSP feed. */
     void handle_h264_output(cv::optional<std::vector<uint8_t>> &out_h264, const cv::optional<int64_t> &out_h264_ts, const cv::optional<int64_t> &out_h264_seqno, std::ofstream &ofs) const;
 
+    /** Use adpative logging to log the inference message so that it does not pollute the log files */
+    void log_inference(const std::string &msg);
+
     /** Save the retraining data if data collection is enabled, this frame lands on the right period, and the confidences are low enough to make it worthwhile. */
     void save_retraining_data(const cv::Mat &original_bgr, const std::vector<float> &confidences);
 
@@ -127,6 +131,9 @@ protected:
 private:
     /** Timer for the data collection stuff. */
     ourtime::Timer data_collection_timer;
+
+    /** Adaptive logger for inference messages. */
+    util::AdaptiveLogger inference_logger;
 
     /** Load potentially several models from a single blob of data (say, if it is a URL that leads to a cascaded model in a .zip file). */
     static bool load(std::string &labelfile, const std::string &data, parser::Parser &modeltype, std::vector<std::string> &blob_files);

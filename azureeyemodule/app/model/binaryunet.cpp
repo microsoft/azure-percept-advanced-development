@@ -45,7 +45,6 @@ void BinaryUnetModel::run(cv::GStreamingCompiled* pipeline)
 
         // Pull data through the pipeline
         bool ran_out_naturally = this->pull_data(*pipeline);
-        util::log_info("pulled through pipeline");
         if (!ran_out_naturally)
         {
             break;
@@ -120,7 +119,7 @@ bool BinaryUnetModel::pull_data(cv::GStreamingCompiled &pipeline)
         ofs.open(this->videofile, std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
     }
 
-    util::log_info("pull_data: prep to pull");
+    util::log_info("Pull_data: prep to pull");
     // Pull the data from the pipeline while it is running
     while (pipeline.pull(cv::gout(out_h264, out_h264_seqno, out_h264_ts, out_bgr, out_mask)))
     {
@@ -185,32 +184,37 @@ void BinaryUnetModel::preview(cv::Mat &frame, const cv::Mat& last_mask) const
       dst.copyTo(frame);
 }
 
-void BinaryUnetModel::handle_inference_output(const cv::optional<cv::Mat> &out_mask,
-                                    cv::Mat &last_mask,
-                                    float threshold
-                                    ) const
+void BinaryUnetModel::handle_inference_output(const cv::optional<cv::Mat> &out_mask, cv::Mat &last_mask, float threshold)
 {
     if (!out_mask.has_value())
     {
         return;
     }
 
-    // The below objects are on the same desynchronized path
-    // and are coming together
-    CV_Assert(out_mask.has_value());
-
+    // Create a mask - everywhere that the network has confidence greater than threshold
     cv::Mat mask_vals(*out_mask > threshold);
 
+    // Compute the fraction of the image that is occupied by detections
     float relativeOccupied = static_cast<float>(cv::countNonZero(mask_vals)) / (mask_vals.rows * mask_vals.cols);
 
+    // Create JSON message of the following schema
+    //
+    // [
+    //   {
+    //     "occupied": <float> fraction of the image covered by detections
+    //   }
+    // ]
+    //
+    // The outer list is not strictly necessary, but because most (all?) of the other
+    // networks have multiple detections per output, they all use lists, so this one
+    // uses a list just to conform.
     std::string str = std::string("[");
     str.append("{")
-    .append("\"occupied\": \"").append(std::to_string(relativeOccupied)).append("\"")
-    .append("}");
-
+        .append("\"occupied\": \"").append(std::to_string(relativeOccupied)).append("\"")
+        .append("}");
     str.append("]");
     last_mask = std::move(mask_vals);
-    util::log_info(str);
+    this->log_inference(str);
 
     iot::msgs::send_message(iot::msgs::MsgChannel::NEURAL_NETWORK, str);
 }

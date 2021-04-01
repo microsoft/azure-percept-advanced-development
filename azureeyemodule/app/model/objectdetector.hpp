@@ -43,7 +43,7 @@ protected:
     virtual void handle_inference_output(const cv::optional<cv::Mat> &out_bgr, const cv::optional<int64_t> &out_nn_ts, const cv::optional<int64_t> &out_nn_seqno,
                                          const cv::optional<std::vector<cv::Rect>> &out_boxes, const cv::optional<std::vector<int>> &out_labels,
                                          const cv::optional<std::vector<float>> &out_confidences, const cv::optional<cv::Size> &out_size, std::vector<cv::Rect> &last_boxes, std::vector<int> &last_labels,
-                                         std::vector<float> &last_confidences) const;
+                                         std::vector<float> &last_confidences);
 
     /** Pull data through the given pipeline. Returns true if we run out of frames, false if we have been interrupted. Otherwise runs forever. */
     virtual bool pull_data(cv::GStreamingCompiled &pipeline);

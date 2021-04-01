@@ -21,8 +21,8 @@
 
 namespace model {
 
-AzureEyeModel::AzureEyeModel(const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution)
-    : modelfiles(modelfpaths), mvcmd(mvcmd), videofile(videofile), resolution(resolution)
+AzureEyeModel::AzureEyeModel(const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show)
+    : modelfiles(modelfpaths), mvcmd(mvcmd), videofile(videofile), resolution(resolution), show_output(show), inference_logger({})
 {
     // Nothing to do
 }
@@ -61,6 +61,11 @@ void AzureEyeModel::wait_for_device()
     {
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
+}
+
+void AzureEyeModel::log_inference(const std::string &msg)
+{
+    this->inference_logger.log_info(msg);
 }
 
 void AzureEyeModel::save_retraining_data(const cv::Mat &bgr, const std::vector<float> &confidences)
@@ -267,7 +272,7 @@ bool AzureEyeModel::unzip_model(const std::string &zippath, std::string &labelfi
     }
     else
     {
-        util::log_error("no config.json, cvexport.manifest, or model.blob file found in the zip archive.");
+        util::log_error("No config.json, cvexport.manifest, or model.blob file found in the zip archive.");
         return false;
     }
 
@@ -370,7 +375,7 @@ bool AzureEyeModel::load_manifest(const std::string &manifestfpath, std::vector<
     int ret = util::run_command("python3 /app/update_cvs_openvino.py /app/model/model.xml /app/model/model.bin /app/model/out.bin && mv /app/model/out.bin /app/model/model.bin");
     if (ret != 0)
     {
-        util::log_error("update_cvs_openvino.py && mv failed with " + ret);
+        util::log_error("Update_cvs_openvino.py && mv failed with " + ret);
         return false;
     }
 
@@ -409,8 +414,6 @@ void AzureEyeModel::handle_h264_output(cv::optional<std::vector<uint8_t>> &out_h
     frame.timestamp = *out_h264_ts;
 
     rtsp::update_data_h264(frame);
-
-    util::log_debug("h264: size=" + std::to_string(out_h264->size()) + ", seqno=" + std::to_string(*out_h264_seqno) + ", ts=" + std::to_string(*out_h264_ts));
 }
 
 cv::gapi::mx::Camera::Mode AzureEyeModel::get_resolution() const
