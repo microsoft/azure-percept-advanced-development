@@ -1,0 +1,1 @@
+docker run --rm -p 127.0.0.1:5665:5665 --name workbench -it openvino/workbench:2021.
