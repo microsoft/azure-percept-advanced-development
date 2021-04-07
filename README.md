@@ -17,6 +17,7 @@ In this repository, you will find:
 * [machine-learning-notebooks](machine-learning-notebooks/README.md): Example Python notebooks which show how to train up a
   few example neural networks from scratch (or using transfer learning) and get them onto your device.
 * [Model and Data Protection](secured_locker/secured-locker-overview.md): Azure Percept currently supports AI model and data protection as a preview feature.
+* [Bring Your Own Model Pipeline Tutorials](tutorials/README.md): Tutorials for how to bring your own custom AI model (and post-processing pipeline) to the device.
 
 ## General Workflow
 
