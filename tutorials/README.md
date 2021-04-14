@@ -7,8 +7,5 @@ This folder contains tutorials for how to bring your own model pipeline to the A
 
 1. [Start Here](banana-unet-tutorial/banana-unet-tutorial.md) - This tutorial walks you through the workflow and tools you will typically use to
    bring a custom model. It uses a model that we have already written and have working.
-1. [Use an OpenVINO zoo model](openvino-zoo-tutorial/openvino-model-zoo-tutorial.md) - This tutorial walks you through bringing a model from
-   a model zoo - specifically the Intel OpenVINO Open Model Zoo.
 1. [Train a new model from scratch using PyTorch and port the model to the device](pytorch-from-scratch-tutorial/pytorch-from-scratch-tutorial.md)
-   - This tutorial is the most advanced one; it shows you how to go from nothing all the way to a fun model, but it relies on the stuff you learned
-   in the previous two tutorials.
+1. [Learn tips for how to debug and optimize your network for the Azure Percept DK](image-translation-tutorial/image-translation-tutorial.md)

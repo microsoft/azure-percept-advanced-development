@@ -114,6 +114,10 @@ but, being an embedded device, the Azure Percept DK is not a great tool for goin
 
 So let's port the model to the Mock Eye Module and make sure it works there before we port it all the way over to the device.
 
+> **_NOTE:_** The Mock Eye Module runs on your CPU (or if you are running Linux, you can use a Neural Compute Stick 2 as well).
+              Just because a neural network works on your 128 GB RAM, Intel i7, doesn't mean that it is going to work satisfactorily
+              on the Myriad X VPU and ARM chip. Keep this in mind when porting!
+
 If you look at the mock-eye-module directory, you can see it contains a C++ application that can be compiled and run using
 Docker. Let's build it and run it before making any changes to it, just to make sure it works.
 
@@ -1117,7 +1121,7 @@ void compile_and_run(const std::string &video_fpath, const std::string &modelfpa
         if (show)
         {
             // Overlay the output from the graph over the input into the graph
-            cv::resize(out_nn, out_nn, out_raw_mat.size(), 0, 0, cv::INTER_NEAREST);
+            cv::resize(out_nn, out_nn, out_raw_mat.size(), 0, 0, cv::INTER_LINEAR);
             cv::imshow("Out", (out_raw_mat / 2) + (out_nn / 2));
             cv::waitKey(1);
 
@@ -2221,7 +2225,7 @@ void UnetSemanticSegmentationModel::handle_inference_output(const cv::optional<c
     last_coverages = std::move(*out_coverages);
 
     // Let's resize our segmentation mask here.
-    cv::resize(last_nn, last_nn, size, 0, 0, cv::INTER_NEAREST);
+    cv::resize(last_nn, last_nn, size, 0, 0, cv::INTER_LINEAR);
 
     // Now we log an inference.
     // This is done through an adaptive logger, so that the logging is done

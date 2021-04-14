@@ -8,6 +8,8 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms as T
 from tqdm import tqdm
 import argparse
+import io
+import itertools
 import math
 import matplotlib.pyplot as plt
 import numpy as np
@@ -52,6 +54,7 @@ VOC_CLASSES_COMBINED = [
     "animal",       # 2 Will map to bird, cat, cow, dog, horse, sheep
     "vehicle",      # 3 Will map to airplane, bicycle, boat, bus, car, motorbike, train
     "indoor"        # 4 Will map to bottle, chair, dining table, potted plant, sofa, tv/monitor
+                    #   I find that this class is quite noisily labeled. Best to ignore it most likely.
 ]
 
 # We map all the original class indices into the small subset of classes we want to use.
@@ -88,6 +91,41 @@ VOC_SUBSET_COLORS = [
     [  0,   0, 128],  # 4 -> indoor -> blue
 ]
 
+class ConfusionMatrix:
+    """
+    A confusion matrix for semantic segmentation that can be interpreted by
+    both Matplotlib and AML logging.
+    """
+    def __init__(self, class_names):
+        n = len(class_names)
+        self._class_names = class_names
+        self._array = np.zeros((n, n), dtype=int)
+        # Array is row=true, col=pred
+
+    def update(self, predmask, gtmask):
+        """
+        Updates the confusion matrix with the given information.
+
+        Calculates how many pixels were classified correctly vs misclassified,
+        treating each pixel as a separate prediction towards each class.
+
+        Each mask should be a PyTorch Tensor object of shape {H, W}.
+        """
+        # For each pixel, load it into the array at array[row=gt class idx][col=pred class idx]
+        assert predmask.shape == gtmask.shape, f"Shapes of predicted and gt do not match: {predmask.shape} and {gtmask.shape}"
+
+        n = len(self._class_names)
+        for r in range(n):
+            for c in range(n):
+                self._array[r][c] += np.sum((gtmask.cpu().detach().numpy() == r) & (predmask.cpu().detach().numpy() == c))
+
+    def as_ndarray(self):
+        """
+        Returns ourselves as an ND Array, compatible with SKLearn's style of
+        confusion matrix.
+        """
+        return self._array
+
 class TransformedVocDataset(torchvision.datasets.VOCSegmentation):
     def __init__(self, dataset_dir, image_set, download, x_transforms, y_transforms):
         """
@@ -118,8 +156,7 @@ class TransformedVocDataset(torchvision.datasets.VOCSegmentation):
         for transform in self._x_transforms:
             img = transform(img)
 
-        # Set the random seed back to the original value so that any random generators will behave
-        # identically going through the Y transforms as they did in the X transforms
+        # Have to do it again in case we reseeded in any transform function.
         random.seed(seed)
         torch.manual_seed(seed)
         for transform in self._y_transforms:
@@ -347,6 +384,52 @@ def compute_dice(pred, y, weights=None):
 
     return dice / len(VOC_CLASSES_COMBINED)
 
+def plot_confusion_matrix(cm, class_names):
+    """
+    Plots a confusion matrix using Matplotlib. Stolen largely from Tensorflow examples
+    under Apache 2.0 license.
+
+    Args:
+        cm (array, shape = [n, n]): a confusion matrix of integer classes
+        class_names (array, shape = [n]): String names of the integer classes
+    """
+    figure = plt.figure(figsize=(8, 8))
+    plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+    plt.title("Confusion matrix")
+    plt.colorbar()
+    tick_marks = np.arange(len(class_names))
+    plt.xticks(tick_marks, class_names, rotation=45)
+    plt.yticks(tick_marks, class_names)
+
+    # Compute the labels from the normalized confusion matrix.
+    labels = np.around(cm.astype('float') / cm.sum(axis=1)[:, np.newaxis], decimals=2)
+
+    # Use white text if squares are dark; otherwise black.
+    threshold = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        color = "white" if cm[i, j] > threshold else "black"
+        plt.text(j, i, labels[i, j], horizontalalignment="center", color=color)
+
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    return figure
+
+def plot_to_image(figure):
+    """
+    Converts the matplotlib plot to PIL image and returns it.
+    The supplied figure is closed and inaccessible after this call.
+
+    This method taken mostly from Tensorflow tutorials, under Apache 2.0 license.
+    """
+    # Save the plot to a PNG in memory.
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    plt.close(figure)
+    buf.seek(0)
+    image = Image.open(buf)
+    return image
+
 def validate_one_epoch(model, dataloader, loss_fn, optimizer, writer, epoch, dataset, weights, use_cuda=True, log=True):
     # Turn off training mode
     model.train(False)
@@ -355,6 +438,7 @@ def validate_one_epoch(model, dataloader, loss_fn, optimizer, writer, epoch, dat
     accuracies = []
     localizations = []
     dices = []
+    confmat = ConfusionMatrix(class_names=VOC_CLASSES_COMBINED)
     print("Validating")
     for x, y in tqdm(dataloader):
         if use_cuda:
@@ -368,6 +452,7 @@ def validate_one_epoch(model, dataloader, loss_fn, optimizer, writer, epoch, dat
             accuracies.append(compute_classification_accuracy(pred, y))
             localizations.append(compute_loc_acc(pred, y))
             dices.append(compute_dice(pred, y, weights=weights))
+            confmat.update(TransformedVocDataset.collapse_one_hot_tensor(pred.squeeze()), y.squeeze())
 
     # Log
     if log:
@@ -405,6 +490,12 @@ def validate_one_epoch(model, dataloader, loss_fn, optimizer, writer, epoch, dat
         writer.add_scalar("Dice/val", dice_value, epoch)
         run.log(name="Dice/val", value=dice_value)
 
+        # Log Confusion Matrix
+        figure = plot_confusion_matrix(confmat.as_ndarray(), class_names=VOC_CLASSES_COMBINED)
+        run.log_image(name="ConfusionMatrix/val", plot=figure)
+        confmat_image = plot_to_image(figure)
+        writer.add_image("ConfusionMatrix/val", T.ToTensor()(confmat_image), epoch)
+
 def train(model, train_dloader, validation_dloader, loss_fn, optimizer, scheduler, dataset, weights, epochs=1, use_cuda=True, log=True):
     if use_cuda:
         model.cuda()
@@ -417,17 +508,22 @@ def train(model, train_dloader, validation_dloader, loss_fn, optimizer, schedule
         train_one_epoch(model, train_dloader, loss_fn, optimizer, scheduler, writer, epoch, use_cuda=use_cuda, log=log)
         validate_one_epoch(model, validation_dloader, loss_fn, optimizer, writer, epoch, dataset, weights, use_cuda=use_cuda, log=log)
 
-def get_transforms():
+def get_transforms(size=128):
     """
     Gets all the torchvision transforms we will be applying to the dataset.
     """
     # These are the transformations that we will do to our dataset
     # For X transforms, let's do some of the usual suspects and convert to tensor.
     # Don't forget to normalize to [0.0, 1.0], FP32
-    # and don't forget to resize to the same size every time. We'll use 128, 128 to keep things small.
+    # and don't forget to resize to the same size every time.
     x_transforms = [
-        T.Resize((128, 128)),
-        T.RandomAffine(degrees=20, translate=(0.1, 0.1)),
+        T.Resize((size, size)),
+        T.RandomApply([
+            T.RandomAffine(degrees=20, translate=(0.1, 0.1)),
+            T.RandomHorizontalFlip(p=0.5),
+            T.RandomRotation(degrees=(-30, 30)),
+            T.RandomVerticalFlip(p=0.5),
+        ], p=0.5),
         T.ColorJitter(brightness=0.5),
         T.ToTensor(),  # Converts to FP32 [0.0, 1.0], Tensor type
     ]
@@ -435,8 +531,13 @@ def get_transforms():
     # For Y transforms, we need to make sure that we do the same thing to the ground truth,
     # since we are trying to recreate the image.
     y_transforms = [
-        T.Resize((128, 128), interpolation=Image.NEAREST),  # Make sure we don't corrupt the labels
-        T.RandomAffine(degrees=20, translate=(0.1, 0.1)),
+        T.Resize((size, size), interpolation=Image.NEAREST),  # Make sure we don't corrupt the labels
+        T.RandomApply([
+            T.RandomAffine(degrees=20, translate=(0.1, 0.1)),
+            T.RandomHorizontalFlip(p=0.5),
+            T.RandomRotation(degrees=(-30, 30)),
+            T.RandomVerticalFlip(p=0.5),
+        ], p=0.5),
     ]
 
     return x_transforms, y_transforms
@@ -445,6 +546,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--batchsize", "-b", type=int, default=32, help="Batch size for training.")
     parser.add_argument("--dataset", "-d", type=str, default="dataset", help="Path to the root of the VOC dataset. If this folder does not exist, we download it, which takes about an hour.")
+    parser.add_argument("--dataset-val", "-v", type=str, default="dataset-val", help="Path to the root of the VOC validation split.")
     parser.add_argument("--learning-rate", "-r", type=float, default=0.01, help="Learning rate for the optimizer.")
     parser.add_argument("--nepochs", "-e", type=int, default=50, help="Number of epochs.")
     parser.add_argument("--split", "-s", type=float, default=0.7, help="Fraction in (0.0, 1.0) of the dataset to use for training. The rest will be reserved for validation.")
@@ -452,6 +554,7 @@ if __name__ == "__main__":
     parser.add_argument("--outputs", "-o", type=str, default="outputs", help="Path to save everything.")
     parser.add_argument("--weights", "-w", type=str, default=None, help="If given, should be a list of weights equal in length to the number of classes. We weight the loss with these values.")
     parser.add_argument("--no-logs", action="store_true", help="If given, we do not log.")
+    parser.add_argument("--resize", type=int, default=128, help="Size of the images. We will resize to this value and use it as both H and W.")
     args = parser.parse_args()
 
     # Sanity check args
@@ -474,11 +577,15 @@ if __name__ == "__main__":
 
     # This is where the dataset will go in our local workspace
     dataset_dir = args.dataset
+    dataset_dir_val = args.dataset_val
     download = not os.path.isdir(dataset_dir)  # Let's not download if we've already downloaded before.
+    download_val = not os.path.isdir(dataset_dir_val)
 
     # Now let's make the dataset
     x_transforms, y_transforms = get_transforms()
-    dataset = TransformedVocDataset(dataset_dir, image_set="val", download=download, x_transforms=x_transforms, y_transforms=y_transforms)
+    dataset_train = TransformedVocDataset(dataset_dir, image_set="train", download=download, x_transforms=x_transforms, y_transforms=y_transforms)
+    dataset_val = TransformedVocDataset(dataset_dir_val, image_set="val", download=download_val, x_transforms=x_transforms, y_transforms=y_transforms)
+    dataset = torch.utils.data.ConcatDataset([dataset_train, dataset_val])
 
     # How many images do we have?
     ntotal_imgs_in_dataset = len(dataset)
@@ -502,9 +609,9 @@ if __name__ == "__main__":
 
     # Print Keras-style summarization
     if use_cuda:
-        torchsummary.summary(unet.cuda(), (3, 128, 128))
+        torchsummary.summary(unet.cuda(), (3, args.resize, args.resize))
     else:
-        torchsummary.summary(unet, (3, 128, 128))
+        torchsummary.summary(unet, (3, args.resize, args.resize))
 
     # Set up the scheduler
     n_learning_rate_cycles = 4  # Cycle the learning rate 4 times: (min -> max, max -> min) x 4
@@ -513,13 +620,13 @@ if __name__ == "__main__":
     cycle_half_period = int(math.ceil(total_steps / (2 * n_learning_rate_cycles)))
     print(f"Will cycle the learning rate up for {cycle_half_period} batches, then down for that many, {n_learning_rate_cycles} times in total.")
     opt = torch.optim.SGD(unet.parameters(), lr=args.learning_rate)
-    scheduler = torch.optim.lr_scheduler.CyclicLR(opt, base_lr=args.learning_rate, max_lr=0.1, step_size_up=cycle_half_period)
+    scheduler = torch.optim.lr_scheduler.CyclicLR(opt, base_lr=args.learning_rate, max_lr=0.1, step_size_up=cycle_half_period, mode="triangular2")
 
     # Training
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=255, weight=args.weights)
     if use_cuda:
         loss_fn.cuda()
-    train(unet, train_split, val_split, loss_fn, opt, scheduler, dataset, args.weights, epochs=args.nepochs, use_cuda=use_cuda, log=not args.no_logs)
+    train(unet, train_split, val_split, loss_fn, opt, scheduler, dataset_train, args.weights, epochs=args.nepochs, use_cuda=use_cuda, log=not args.no_logs)
 
     # Save
     os.makedirs(args.outputs, exist_ok=True)
