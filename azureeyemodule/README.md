@@ -308,7 +308,7 @@ Either way, once you have buildx installed, run the following to cross compile:
 `docker buildx build --platform linux/arm64 --tag azureeyemodule-xc -f Dockerfile.arm64v8 --load .`, which will build the azureeyemodule Docker image,
 and with it, the Percept application.
 
-Once you have your new azureeyemodule, stick it into any container registry and pull it using the IoT Hubt.
+Once you have your new azureeyemodule, stick it into any container registry and pull it using the IoT Hub.
 Alternatively, you can [tar up your image and scp it over](https://stackoverflow.com/questions/23935141/how-to-copy-docker-images-from-one-host-to-another-without-using-a-repository).
 
 #### Linux

@@ -1,8 +1,15 @@
 # Mock Eye Module
 
+**Please note!** The experiences in this repository should be considered to be in **preview/beta**.
+Significant portions of these experiences are subject to change without warning. **No part of this code should be considered stable**.
+
 This directory contains all the code that we use to build and test a mock azureeyemodule application
 using C++ and OpenVINO. The theory is that if the model works here, it should be easy to get working
 on the Azure Percept DK.
+
+> **_NOTE:_** The Mock Eye Module runs on your CPU (or if you are running Linux, you can use a Neural Compute Stick 2 as well).
+              Just because a neural network works on your 128 GB RAM, Intel i7, doesn't mean that it is going to work satisfactorily
+              on the Myriad X VPU and ARM chip. Keep this in mind when porting!
 
 ## Scripts
 
