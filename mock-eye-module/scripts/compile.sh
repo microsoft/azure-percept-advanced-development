@@ -5,6 +5,7 @@
 # usage: ./compile.sh
 
 # Make the tmp directory, then copy everything into it
+rm -rf tmp
 mkdir -p tmp
 cp -r kernels tmp/
 cp -r modules tmp/

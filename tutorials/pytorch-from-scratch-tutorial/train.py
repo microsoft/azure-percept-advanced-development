@@ -91,6 +91,11 @@ VOC_SUBSET_COLORS = [
     [  0,   0, 128],  # 4 -> indoor -> blue
 ]
 
+# MobileNetv2 from PyTorch requires a normalization procedure using these values
+MOBILENET_MEAN = [0.485, 0.456, 0.406]
+MOBILENET_STD = [0.229, 0.224, 0.225]
+
+
 class ConfusionMatrix:
     """
     A confusion matrix for semantic segmentation that can be interpreted by
@@ -156,8 +161,7 @@ class TransformedVocDataset(torchvision.datasets.VOCSegmentation):
         for transform in self._x_transforms:
             img = transform(img)
 
-        # Set the random seed back to the original value so that any random generators will behave
-        # identically going through the Y transforms as they did in the X transforms
+        # Have to do it again to reset the seed so all our y-transforms match the x ones.
         random.seed(seed)
         torch.manual_seed(seed)
         for transform in self._y_transforms:
@@ -190,6 +194,21 @@ class TransformedVocDataset(torchvision.datasets.VOCSegmentation):
         pred = torch.argmax(pred, dim=0)
         return pred
 
+    @staticmethod
+    def x_to_pil_image(x, use_mobilenet=False):
+        """
+        Convert the given image Tensor to PIL image,
+        un-normalizing appropriately.
+        """
+        if use_mobilenet:
+            # Pretrained MobileNet uses a normalization procedure different than the stock one
+            img = torch.zeros_like(x)
+            for i in range(3):
+                img[i] = (x[i] * MOBILENET_STD[i]) + MOBILENET_MEAN[i]
+            return T.ToPILImage()(img)
+        else:
+            return T.ToPILImage()(x)
+
     def mask_tensor_to_pil_image(self, y):
         """
         Convert the given mask to a displayable PIL Image.
@@ -214,9 +233,80 @@ class TransformedVocDataset(torchvision.datasets.VOCSegmentation):
         img = Image.fromarray(img.numpy())
         return img
 
+class MobileNetForSemSeg(torch.nn.Module):
+    """
+    Another network. This one uses MobileNetV2 as a backbone,
+    adds some skip connections, and an upsampling decoder.
+
+    Input shape MUST be 256. MobileNetv2 in Pytorch at least, does not support
+    less than 224x224. Also, input MUST be normalized like this:
+
+    preprocess = transforms.Compose([
+        transforms.Resize(256),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]), # <<<<<
+    ])
+    """
+    def __init__(self, nclasses):
+        super().__init__()
+
+        # Take only the features portion, not the classifier portion of mobilenet
+        mobilenet_features = torch.hub.load("pytorch/vision", "mobilenet_v2", pretrained=True).features
+        self.mobilenet = torch.nn.ModuleList(mobilenet_features).eval()  # Set to eval mode!
+        
+        # Make sure to freeze the feature extraction layers
+        for parameter in self.mobilenet.parameters():
+            parameter.requires_grad = False
+
+        # Extract the features that we want to concat in our U-Netish design
+        self.layers_to_concat_from = [
+            0,   # ConvBNActivation, output shape is (-1, 32, 128, 128)
+            3,   # InvertedResidual, output shape is (-1, 24,  64,  64)
+            6,   # InvertedResidual, output shape is (-1, 32,  32, 32)
+            13,  # InvertedResidual, output shape is (-1, 96,  16, 16)
+        ]
+
+        # Need expand blocks up to (nclasses x input size x input size)
+        self.upconv5 = self.expand_block(1280, 96, 3, 1)        # Output shape (-1, 96,  16, 16)
+        self.upconv4 = self.expand_block(96*2, 32, 3, 1)        # Output shape (-1, 32,  32, 32)
+        self.upconv3 = self.expand_block(32*2, 24, 3, 1)        # Output shape (-1, 24,  64, 64)
+        self.upconv2 = self.expand_block(24*2, 32, 3, 1)        # Output shape (-1, 32, 128, 128)
+        self.upconv1 = self.expand_block(32*2, nclasses, 3, 1)  # Output shape (-1, 32, 256, 256)
+
+    def __call__(self, x):
+        # Feature Extraction
+        intermediates = []
+        for i, block in enumerate(self.mobilenet):
+            x = block(x)
+            if i in self.layers_to_concat_from:
+                # Keep intermediate result
+                intermediates.append(x)
+
+        batchnorm2d_116, batchnorm2d_53, batchnorm2d_26, relu6_3 = intermediates[::-1]
+
+        # Upsample (plus take in skip connections)
+        upconv5 = self.upconv5(x)
+        upconv4 = self.upconv4(torch.cat([upconv5, batchnorm2d_116], 1))
+        upconv3 = self.upconv3(torch.cat([upconv4, batchnorm2d_53], 1))
+        upconv2 = self.upconv2(torch.cat([upconv3, batchnorm2d_26], 1))
+        upconv1 = self.upconv1(torch.cat([upconv2, relu6_3], 1))
+
+        return upconv1
+
+    def expand_block(self, in_channels, out_channels, kernel_size, padding):
+        expand = torch.nn.Sequential(torch.nn.Conv2d(in_channels, out_channels, kernel_size, stride=1, padding=padding),
+                                     torch.nn.BatchNorm2d(out_channels),
+                                     torch.nn.ReLU(),
+                                     torch.nn.Conv2d(out_channels, out_channels, kernel_size, stride=1, padding=padding),
+                                     torch.nn.BatchNorm2d(out_channels),
+                                     torch.nn.ReLU(),
+                                     torch.nn.ConvTranspose2d(out_channels, out_channels, kernel_size=3, stride=2, padding=1, output_padding=1)
+        )
+        return expand
+
 class UNet(torch.nn.Module):
     """
-    This is the network we will be training.
+    This is a super simple UNet network. I find it doesn't quite work well enough for my tastes.
 
     It is originally based on https://www.kaggle.com/cordmaur/38-cloud-simple-unet, and is taken under Apache 2.0.
     """
@@ -224,17 +314,17 @@ class UNet(torch.nn.Module):
         super().__init__()
 
         rgb = 3
-        self.conv1 = self.contract_block(rgb, 32, 7, 3)
-        self.conv2 = self.contract_block(32, 64, 3, 1)
-        self.conv3 = self.contract_block(64, 128, 3, 1)
-        self.conv4 = self.contract_block(128, 256, 3, 1)
-        self.conv5 = self.contract_block(256, 512, 3, 1)
+        self.conv1 = self.contract_block(rgb, 64, 7, 3)
+        self.conv2 = self.contract_block(64, 128, 3, 1)
+        self.conv3 = self.contract_block(128, 256, 3, 1)
+        self.conv4 = self.contract_block(256, 512, 3, 1)
+        self.conv5 = self.contract_block(512, 512, 3, 1)
 
-        self.upconv5 = self.expand_block(512, 256, 3, 1)
-        self.upconv4 = self.expand_block(256*2, 128, 3, 1)
-        self.upconv3 = self.expand_block(128*2, 64, 3, 1)
-        self.upconv2 = self.expand_block(64*2, 32, 3, 1)
-        self.upconv1 = self.expand_block(32*2, nclasses, 3, 1)
+        self.upconv5 = self.expand_block(512, 512, 3, 1)
+        self.upconv4 = self.expand_block(512*2, 256, 3, 1)
+        self.upconv3 = self.expand_block(256*2, 128, 3, 1)
+        self.upconv2 = self.expand_block(128*2, 64, 3, 1)
+        self.upconv1 = self.expand_block(64*2, nclasses, 3, 1)
 
     def __call__(self, x):
         # downsampling part
@@ -297,18 +387,21 @@ def train_one_epoch(model, dataloader, loss_fn, optimizer, scheduler, writer, ep
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        scheduler.step()
+        if scheduler is not None:
+            scheduler.step()
 
         # Log
         if log:
             writer.add_scalar("Loss/train", loss, epoch)
-            writer.add_scalar("Learning-Rate", scheduler.get_last_lr()[0])  # get_last_lr() returns a list
-
+            
             # Log with AML
             run = Run.get_context()
             logloss = np.asscalar(torch.clone(loss).detach().cpu().numpy())
             run.log(name="Loss/train", value=logloss)
-            run.log(name="Learning-Rate", value=scheduler.get_last_lr()[0])
+            
+            if scheduler is not None:
+                writer.add_scalar("Learning-Rate", scheduler.get_last_lr()[0])  # get_last_lr() returns a list
+                run.log(name="Learning-Rate", value=scheduler.get_last_lr()[0])
 
 def compute_classification_accuracy(pred, y):
     """
@@ -431,7 +524,7 @@ def plot_to_image(figure):
     image = Image.open(buf)
     return image
 
-def validate_one_epoch(model, dataloader, loss_fn, optimizer, writer, epoch, dataset, weights, use_cuda=True, log=True):
+def validate_one_epoch(model, dataloader, loss_fn, optimizer, writer, epoch, dataset, weights, use_cuda=True, log=True, use_mobilenet=False):
     # Turn off training mode
     model.train(False)
 
@@ -464,7 +557,7 @@ def validate_one_epoch(model, dataloader, loss_fn, optimizer, writer, epoch, dat
 
         # Compose an image grid and log it for visualization
         imgs_for_grid = [
-            x[0].cpu(),  # Tensor
+            T.ToTensor()(TransformedVocDataset.x_to_pil_image(x[0].cpu(), use_mobilenet=use_mobilenet)),  # Tensor
             T.ToTensor()(dataset.mask_tensor_to_pil_image(y[0]).convert("RGB")).cpu(),        # Tensor -> PIL (with correct RGB values in palette) -> Tensor
             T.ToTensor()(TransformedVocDataset.one_hot_tensor_to_pil_image(pred[0]).convert("RGB")).cpu()   # Tensor -> PIL (with correct RGB values in palette) -> Tensor
         ]
@@ -497,7 +590,7 @@ def validate_one_epoch(model, dataloader, loss_fn, optimizer, writer, epoch, dat
         confmat_image = plot_to_image(figure)
         writer.add_image("ConfusionMatrix/val", T.ToTensor()(confmat_image), epoch)
 
-def train(model, train_dloader, validation_dloader, loss_fn, optimizer, scheduler, dataset, weights, epochs=1, use_cuda=True, log=True):
+def train(model, train_dloader, validation_dloader, loss_fn, optimizer, scheduler, dataset, weights, epochs=1, use_cuda=True, log=True, use_mobilenet=False):
     if use_cuda:
         model.cuda()
 
@@ -507,9 +600,9 @@ def train(model, train_dloader, validation_dloader, loss_fn, optimizer, schedule
     for epoch in range(epochs):
         print("Epoch", epoch + 1, "of", epochs)
         train_one_epoch(model, train_dloader, loss_fn, optimizer, scheduler, writer, epoch, use_cuda=use_cuda, log=log)
-        validate_one_epoch(model, validation_dloader, loss_fn, optimizer, writer, epoch, dataset, weights, use_cuda=use_cuda, log=log)
+        validate_one_epoch(model, validation_dloader, loss_fn, optimizer, writer, epoch, dataset, weights, use_cuda=use_cuda, log=log, use_mobilenet=use_mobilenet)
 
-def get_transforms(size=128):
+def get_transforms(size=128, mobilenet=False):
     """
     Gets all the torchvision transforms we will be applying to the dataset.
     """
@@ -528,6 +621,10 @@ def get_transforms(size=128):
         T.ColorJitter(brightness=0.5),
         T.ToTensor(),  # Converts to FP32 [0.0, 1.0], Tensor type
     ]
+
+    # Pretrained MobileNetV2 requires normalizing like this:
+    if mobilenet:
+        x_transforms.append(T.Normalize(mean=MOBILENET_MEAN, std=MOBILENET_STD))
 
     # For Y transforms, we need to make sure that we do the same thing to the ground truth,
     # since we are trying to recreate the image.
@@ -549,6 +646,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", "-d", type=str, default="dataset", help="Path to the root of the VOC dataset. If this folder does not exist, we download it, which takes about an hour.")
     parser.add_argument("--dataset-val", "-v", type=str, default="dataset-val", help="Path to the root of the VOC validation split.")
     parser.add_argument("--learning-rate", "-r", type=float, default=0.01, help="Learning rate for the optimizer.")
+    parser.add_argument("--optimizer", type=str, choices=["adam", "cyclic"], default="cyclic", help="If 'adam', we use Adam Optimizer with no learning rate scheduling. With 'cyclic', we use SGD with cyclic learning rate scheduling.")
     parser.add_argument("--nepochs", "-e", type=int, default=50, help="Number of epochs.")
     parser.add_argument("--split", "-s", type=float, default=0.7, help="Fraction in (0.0, 1.0) of the dataset to use for training. The rest will be reserved for validation.")
     parser.add_argument("--use-cpu", "-c", action="store_true", help="If given, we use CPU, otherwise we try to use CUDA.")
@@ -556,6 +654,7 @@ if __name__ == "__main__":
     parser.add_argument("--weights", "-w", type=str, default=None, help="If given, should be a list of weights equal in length to the number of classes. We weight the loss with these values.")
     parser.add_argument("--no-logs", action="store_true", help="If given, we do not log.")
     parser.add_argument("--resize", type=int, default=128, help="Size of the images. We will resize to this value and use it as both H and W.")
+    parser.add_argument("--model", choices=["mobilenet", "unet"], type=str, default="unet", help="Which model architecture to use.")
     args = parser.parse_args()
 
     # Sanity check args
@@ -583,7 +682,7 @@ if __name__ == "__main__":
     download_val = not os.path.isdir(dataset_dir_val)
 
     # Now let's make the dataset
-    x_transforms, y_transforms = get_transforms()
+    x_transforms, y_transforms = get_transforms(size=args.resize, mobilenet=args.model == "mobilenet")
     dataset_train = TransformedVocDataset(dataset_dir, image_set="train", download=download, x_transforms=x_transforms, y_transforms=y_transforms)
     dataset_val = TransformedVocDataset(dataset_dir_val, image_set="val", download=download_val, x_transforms=x_transforms, y_transforms=y_transforms)
     dataset = torch.utils.data.ConcatDataset([dataset_train, dataset_val])
@@ -606,31 +705,41 @@ if __name__ == "__main__":
     use_cuda = not args.use_cpu
 
     # Create the model itself
-    unet = UNet(len(VOC_CLASSES_COMBINED))
+    if args.model == "mobilenet":
+        model = MobileNetForSemSeg(len(VOC_CLASSES_COMBINED))
+    elif args.model == "unet":
+        model = UNet(len(VOC_CLASSES_COMBINED))
+    else:
+        print(f"Given a model that I don't know: {model}")
+        exit(3)
 
     # Print Keras-style summarization
     if use_cuda:
-        torchsummary.summary(unet.cuda(), (3, args.resize, args.resize))
+        torchsummary.summary(model.cuda(), (3, args.resize, args.resize))
     else:
-        torchsummary.summary(unet, (3, args.resize, args.resize))
+        torchsummary.summary(model, (3, args.resize, args.resize), device="CPU")
 
     # Set up the scheduler
-    n_learning_rate_cycles = 4  # Cycle the learning rate 4 times: (min -> max, max -> min) x 4
-    steps_per_epoch = int(math.ceil(ntrain_split / args.batchsize))
-    total_steps = int(steps_per_epoch * args.nepochs)
-    cycle_half_period = int(math.ceil(total_steps / (2 * n_learning_rate_cycles)))
-    print(f"Will cycle the learning rate up for {cycle_half_period} batches, then down for that many, {n_learning_rate_cycles} times in total.")
-    opt = torch.optim.SGD(unet.parameters(), lr=args.learning_rate)
-    scheduler = torch.optim.lr_scheduler.CyclicLR(opt, base_lr=args.learning_rate, max_lr=0.1, step_size_up=cycle_half_period, mode="triangular2")
+    if args.optimizer == "adam":
+        opt = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+        scheduler = None
+    else:
+        n_learning_rate_cycles = 4  # Cycle the learning rate 4 times: (min -> max, max -> min) x 4
+        steps_per_epoch = int(math.ceil(ntrain_split / args.batchsize))
+        total_steps = int(steps_per_epoch * args.nepochs)
+        cycle_half_period = int(math.ceil(total_steps / (2 * n_learning_rate_cycles)))
+        print(f"Will cycle the learning rate up for {cycle_half_period} batches, then down for that many, {n_learning_rate_cycles} times in total.")
+        opt = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
+        scheduler = torch.optim.lr_scheduler.CyclicLR(opt, base_lr=args.learning_rate, max_lr=0.1, step_size_up=cycle_half_period, mode="triangular2")
 
     # Training
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=255, weight=args.weights)
     if use_cuda:
         loss_fn.cuda()
-    train(unet, train_split, val_split, loss_fn, opt, scheduler, dataset_train, args.weights, epochs=args.nepochs, use_cuda=use_cuda, log=not args.no_logs)
+    train(model, train_split, val_split, loss_fn, opt, scheduler, dataset_train, args.weights, epochs=args.nepochs, use_cuda=use_cuda, log=not args.no_logs, use_mobilenet=args.model=="mobilenet")
 
     # Save
     os.makedirs(args.outputs, exist_ok=True)
     modelpath = os.path.join(args.outputs, "model.pth")
-    torch.save(unet.state_dict(), modelpath)
+    torch.save(model.state_dict(), modelpath)
     print("Model saved to", modelpath)

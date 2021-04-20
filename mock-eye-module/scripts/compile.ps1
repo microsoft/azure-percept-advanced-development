@@ -5,6 +5,9 @@
 $ErrorActionPreference = "Stop"
 
 # Create a tmp directory that will house the build artifacts, as well as all the source code
+If (Test-Path "tmp") {
+    Remove-Item -Recurse -Force tmp
+}
 New-Item -ItemType Directory -Name tmp
 Copy-Item -Recurse kernels tmp/
 Copy-Item -Recurse modules tmp/

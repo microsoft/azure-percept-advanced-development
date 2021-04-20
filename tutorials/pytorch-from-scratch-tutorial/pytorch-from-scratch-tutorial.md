@@ -6,6 +6,7 @@ Significant portions of these experiences are subject to change without warning.
 ## Table of Contents
 
 1. [Introduction](#introduction)
+1. [Prerequisites](#prerequisites)
 1. [Input Format](#input-format)
 1. [Network Size](#network-size)
 1. [Training up a Brand New Model](#training-up-a-brand-new-model)
@@ -23,6 +24,14 @@ This tutorial will walk you through the following steps:
 1. Deploying the new model to the device
 
 Before we get to it though, there are a few things we should go over.
+
+## Prerequisites
+
+Before going through this tutorial, I recommend that you go through
+[the Banana Notebook Tutorial](../banana-unet-tutorial/banana-unet-tutorial.md) first.
+
+That tutorial will walk you through creating an AML studio workspace and give you a general overview
+of the Azure Percept DK and how the azureeyemodule (and bringing your own model) fits into it.
 
 ## Input Format
 
@@ -54,11 +63,12 @@ This folder contains a few things:
 * train.py: The Python training script. It runs PyTorch to train a semantic segmentation neural network.
 
 We will use Azure Machine Learning (AML) Studio with the PyTorchModelFromScratch.ipynb notebook to train the network. You do not have to use
-AML for this! You can use whatever workflow you are accustomed to for training neural networks. Tensorflow, Caffe, PyTorch - train locally or
-in the cloud, whatever. As long as you end up with a model file that can be converted to run on a Myriad X VPU, you are fine.
+AML to train your custom neural networks! You can use whatever workflow you are accustomed to for training neural networks.
+Tensorflow, Caffe, PyTorch - train locally or in the cloud, whatever. As long as you end up with a model file that can
+be converted to run on a Myriad X VPU, you are fine.
 
 Let's assume you are using AML Studio though for the sake of this tutorial (since I can't write a tutorial for all possible combinations of
-workflows).
+workflows and since the Python Notebook assumes AML).
 
 To train the network, use the same Studio Workspace you created in the Banana tutorial, but make sure to make a new folder and upload
 this directory's contents to it. You should end up with something like this (the Users/ and You/ folders aren't necessarily there):
@@ -89,7 +99,7 @@ Briefly, the notebook does the following:
 
 The last step is to package up your model for deployment, but as you can see in the notebook
 (if you are following along), it says that you can't complete that section until you've come back here
-and completed the rest of the tutorial. So let's do that now.
+and completed the rest of the tutorial. Go do the tutorial in the notebook, then come back here.
 
 At this point, you have a model for testing, in the following formats:
 
@@ -98,9 +108,14 @@ At this point, you have a model for testing, in the following formats:
 * OpenVINO IR
 * OpenVINO Myriad X .blob
 
+These are all located in the "outputs" folder that the Notebook created in your AML Workspace.
+You should download the model.xml and the model.bin files from there and hold onto them for later.
+Those model files comprise the OpenVINO IR format, and we will be using that soon.
+
 The device is capable of using either OpenVINO IR or .blob, but it is best to use .blob with it,
 otherwise it has to convert the IR to .blob on device, which adds to deployment time and can be a pain
-to debug if something goes wrong.
+to debug if something goes wrong, so the .blob file will get downloaded to your device once
+the device has been prepared for it.
 
 Future improvements will likely add better support for ONNX on the device.
 
@@ -193,7 +208,8 @@ If you use any of these, you will need to give a --parser argument.
 
 Now that we've got a sandbox to test our model in, let's work on porting the semantic segmentation model over to it.
 
-First, download the .bin and .xml files from the "outputs" folder of the AML Workspace that you ran the notebook in.
+First, download the .bin and .xml files from the "outputs" folder of the AML Workspace that you ran the notebook in,
+if you haven't already done that.
 
 Now let's go through what you will need to do to add support for this model to the mock-eye-module. Remember the point of adding
 support for this model to the mock-eye-module is that doing so will put us about halfway towards our real goal of porting
@@ -384,7 +400,7 @@ to be more verbose:
   users, only CPU is supported.
 * `show`: We don't need to show the GUI, but it is cool (and helpful for debugging). You could certainly get a way with just using
   `std::cout` messages.
-* `labels`: Our U-Net model is trained to do semantic segmentation on particular items. If we don't give this over to the function,
+* `labels`: Our new model is trained to do semantic segmentation on particular items. If we don't give this over to the function,
   we'll make sure that the function just displays numbers instead of labels, so it is technically optional. Nonetheless, we'll pass something in either way,
   and if the function can't find the given file (perhaps because it is just an empty string, and not a file path at all), then we'll ignore this arg
   and output numbers instead of letters.
@@ -424,7 +440,7 @@ namespace semseg {
 
 // This macro is used to tell G-API what types this network is going to take in and output.
 // In our case, we are going to take in a single image (represented as a CV Mat, in G-API called a GMat)
-// and output a tensor of shape {Batch size (which will be 1), N_CLASSES, 128 pixels high, 128 pixels wide},
+// and output a tensor of shape {Batch size (which will be 1), N_CLASSES, 256 pixels high, 256 pixels wide},
 // which we will again represent as a GMat.
 //
 // The tag at the end can be anything you want.
@@ -545,8 +561,6 @@ First it should spout a whole bunch of GStreamer warnings, since we are running 
 we haven't installed most of the GStreamer libraries, so OpenCV is complaining that GStreamer is missing
 plugins. But we don't care.
 
-Note that in order to run it again, you will need to remove the tmp folder that it created. I really should get around to making the script do that itself...
-
 It should just pipe the video through and display it frame by frame in the GUI.
 
 Now let's expand on our example to make it a bit more exciting. Replace your mock-eye-module/modules/segmentation/unet_semseg.cpp
@@ -580,7 +594,7 @@ namespace semseg {
 
 // This macro is used to tell G-API what types this network is going to take in and output.
 // In our case, we are going to take in a single image (represented as a CV Mat, in G-API called a GMat)
-// and output a tensor of shape {Batch size (which will be 1), N_CLASSES, 128 pixels high, 128 pixels wide},
+// and output a tensor of shape {Batch size (which will be 1), N_CLASSES, 256 pixels high, 256 pixels wide},
 // which we will again represent as a GMat.
 //
 // The tag at the end can be anything you want.
@@ -604,7 +618,7 @@ void compile_and_run(const std::string &video_fpath, const std::string &modelfpa
 
     // Now we do two things: copy the input and run the input through our network.
     auto raw_input = cv::gapi::copy(in);
-    auto nn = cv::gapi::infer<SemanticSegmentationUNet>(in); //<< Here we atually run the image through the network and collect the raw results.
+    auto nn = cv::gapi::infer<SemanticSegmentationUNet>(in); //<< Here we actually run the image through the network and collect the raw results.
     auto graph_outs = cv::GOut(raw_input, nn); //<< Notice that we now have two output nodes
 
     // Graph compilation ///////////////////////////////////////////////////////
@@ -659,11 +673,8 @@ void compile_and_run(const std::string &video_fpath, const std::string &modelfpa
             cv::imshow("Out", out_raw_mat);
             cv::waitKey(1);
 
-            auto desc = cv::descr_of(out_nn);
-            std::cout << "Desc:" << desc << std::endl;
-
             // Now let's print our network's output dimensions
-            // If you have been following along so far, these dimensions should be {1, 5, 128, 128}
+            // If you have been following along so far, these dimensions should be {1, 5, 256, 256}
             std::cout << " Dimensions: ";
             for (auto i = 0; i < out_nn.size.dims(); i++)
             {
@@ -680,9 +691,9 @@ void compile_and_run(const std::string &video_fpath, const std::string &modelfpa
 } // namespace semseg
 ```
 
-At this point, if we build it and run it again (which will require that you remove the tmp directory the previous build command created), you can
+At this point, if we build it and run it again, you can
 see that we are still just piping the image through, but now we are running the image through the network as well, and then
-printing the dimensionality of the output. It should print "Dimensions: 1, 5, 128, 128, " for each frame.
+printing the dimensionality of the output. It should print "Dimensions: 1, 5, 256, 256, " for each frame.
 
 Now let's start the process of interpreting the network's output. To do this, we will need to write a custom G-API operation.
 This next version is just going to create a silly custom op that simply takes in a cv::Mat object and outputs it, unchanged.
@@ -801,7 +812,7 @@ void compile_and_run(const std::string &video_fpath, const std::string &modelfpa
             cv::waitKey(1);
 
             // Now let's print our network's output dimensions
-            // If you have been following along so far, these dimensions should be {1, 5, 128, 128}
+            // If you have been following along so far, these dimensions should be {1, 5, 256, 256}
             std::cout << "Dimensions: ";
             for (auto i = 0; i < out_nn.size.dims(); i++)
             {
@@ -878,7 +889,8 @@ namespace custom {
 //
 // The function signature looks like this <output args(input args)>. Because C++ does not have native
 // support for multiple return values (like Python), we need to wrap the multiple return values into
-// a std::tuple, and we went ahead and aliased it into GSegmentationAndClasses to be more readable.
+// a std::tuple if you have multiple outputs. Right now, we only have one output.
+//
 // A note about the types: in order to insert an op into a G-API graph, you need to make sure the types
 // are mapped from what you actually want into the G-API type system.
 // G-API types are simple: they have support for primatives, for cv::Mat objects as GMat objects,
@@ -892,12 +904,12 @@ G_API_OP(GParseUnetForSemSeg, <GMat(GMat)>, "org.microsoft.gparseunetsemseg")
     // versions of the types and output the same thing.
     //
     // Notice that we have mapped our inputs from GMat -> GMatDesc
-    // (and added const and reference declaration syntax to them).
+    // (and added const and reference declaration syntax to the input).
     static GMatDesc outMeta(const GMatDesc&)
     {
         // This must be the right shape and type of the output. Otherwise you will get
-        // an ominous error about the meta data being wrong.
-        return cv::GMatDesc(CV_32FC1, {1, 5, 128, 128});
+        // an ominous error about the meta data being wrong or about a Mat object resizing in a kernel.
+        return cv::GMatDesc(CV_32FC1, {1, 5, 256, 256});
     }
 };
 
@@ -910,9 +922,9 @@ G_API_OP(GParseUnetForSemSeg, <GMat(GMat)>, "org.microsoft.gparseunetsemseg")
 // is implement a GOCVParseUnetForSemSegCPU, GOCVParseUnetForSemSegGPU, and a GOCVParseUnetForSemSegVPU
 // function. All the other code would remain the same.
 //
-// In our case, we are going to do everything in this function the CPU, since there's not really
-// any acceleration needed for this, and because our VPU on the device is occupied running
-// the neural network and doing a few other things.
+// In our case, we are going to do everything in this function on the CPU, since there's not really
+// any acceleration needed for this, our device cannot make use of the VPU for general programming,
+// and because our VPU on the device is occupied running the neural network and doing a few other things anyway.
 //
 // So we will just create a single kernel, and it will run on the CPU.
 GAPI_OCV_KERNEL(GOCVParseUnetForSemSeg, GParseUnetForSemSeg)
@@ -933,7 +945,6 @@ GAPI_OCV_KERNEL(GOCVParseUnetForSemSeg, GParseUnetForSemSeg)
     {
         // Here's where we will implement all the logic for post-processing our neural network
         // Our network outputs a shape {Batch Size, N Classes, Height, Width} tensor.
-        // Batch Size is always going to be 1 on our device, so let's just remove that.
         CV_Assert(in_img.size.dims() == 4);
         CV_Assert(out_img.size.dims() == 4);
         CV_Assert(in_img.type() == out_img.type());
@@ -1193,7 +1204,8 @@ namespace custom {
 //
 // The function signature looks like this <output args(input args)>. Because C++ does not have native
 // support for multiple return values (like Python), we need to wrap the multiple return values into
-// a std::tuple, and we went ahead and aliased it into GSegmentationAndClasses to be more readable.
+// a std::tuple.
+//
 // A note about the types: in order to insert an op into a G-API graph, you need to make sure the types
 // are mapped from what you actually want into the G-API type system.
 // G-API types are simple: they have support for primatives, for cv::Mat objects as GMat objects,
@@ -1212,7 +1224,7 @@ G_API_OP(GParseUnetForSemSeg, <std::tuple<GMat, GArray<float>>(GMat)>, "org.micr
     {
         // This must be the right shape and type of the output. Otherwise you will get
         // an ominous error about the meta data being wrong.
-        auto desc = empty_gmat_desc().withSize({128, 128}).withType(CV_8U, 3);
+        auto desc = empty_gmat_desc().withSize({256, 256}).withType(CV_8U, 3);
         return {desc, empty_array_desc()};
     }
 };
@@ -1224,8 +1236,8 @@ G_API_OP(GParseUnetForSemSeg, <std::tuple<GMat, GArray<float>>(GMat)>, "org.micr
 // for the semantic segmentation example.
 ////////////////////////////////////////////////////////////////////////////////////
 
-// Input: 32FC1 {5, 128, 128}  -- (i.e., 5, 128, 128)
-// Output: 32FC1 {128, 128}    -- (i.e., 1, 128, 128)
+// Input: 32FC1 {5, 256, 256}  -- (i.e., 5, 256, 256)
+// Output: 32FC1 {256, 256}    -- (i.e., 1, 256, 256)
 static void log_soft_argmax(const cv::Mat &mat, cv::Mat &ret)
 {
     // Check input image
@@ -1298,8 +1310,8 @@ static void log_soft_argmax(const cv::Mat &mat, cv::Mat &ret)
     }
 }
 
-// Input: 8UC1 {128, 128} -- (i.e. 1, 128, 128)
-// Output 8UC3 {128, 128}  -- (i.e. 3, 128, 128)
+// Input: 8UC1 {256, 256} -- (i.e. 1, 256, 256)
+// Output 8UC3 {256, 256}  -- (i.e. 3, 256, 256)
 static void convert_class_idx_to_rgb(const cv::Mat &mat, cv::Mat &ret)
 {
     CV_Assert(ret.dims == 2);
@@ -1401,9 +1413,9 @@ static void calculate_coverages(const cv::Mat &argmaxed_img, std::vector<float> 
 // is implement a GOCVParseUnetForSemSegCPU, GOCVParseUnetForSemSegGPU, and a GOCVParseUnetForSemSegVPU
 // function. All the other code would remain the same.
 //
-// In our case, we are going to do everything in this function the CPU, since there's not really
-// any acceleration needed for this, and because our VPU on the device is occupied running
-// the neural network and doing a few other things.
+// In our case, we are going to do everything in this function on the CPU, since there's not really
+// any acceleration needed for this, our device cannot make use of the VPU for general programming,
+// and because our VPU on the device is occupied running the neural network and doing a few other things anyway.
 //
 // So we will just create a single kernel, and it will run on the CPU.
 GAPI_OCV_KERNEL(GOCVParseUnetForSemSeg, GParseUnetForSemSeg)
@@ -1415,7 +1427,7 @@ GAPI_OCV_KERNEL(GOCVParseUnetForSemSeg, GParseUnetForSemSeg)
     // and since the kernel function needs to run good old fashioned C++ code (not G-API code),
     // we need to map this type to:
     //
-    // <std::tuple<cv::Mat, std::vector<float>>(cv::Mat, cv::Size)>
+    // <std::tuple<cv::Mat, std::vector<float>>(cv::Mat)>
     //
     // but because we need to map our return value to an output reference,
     // the actual signature of this function is:
@@ -1535,7 +1547,8 @@ Things that could still go wrong at this point are limited to:
 * The post-processing of the model may be too slow for our purposes. Again, we won't know
   whether this is the case until we try it out on the device. But at least on my PC,
   the post-processing (which is entirely un-optimized) runs quite fast. So I am not
-  too worried.
+  too worried, as we can always optimize this if need be (or let some downstream task
+  in the cloud handle it).
 
 Notice that the last two things are just optimization. If the model is too large, you
 will have to go back and try to retrain a smaller model, but as long as the input and
@@ -1951,7 +1964,7 @@ private:
 
 namespace model {
 
-/** Declare an OpenPose network type. Takes one matrix and outputs two matrices. */
+/** Declare a SemanticSegmentationUNet network type. Takes one matrix and outputs another. */
 G_API_NET(SemanticSegmentationUNet, <cv::GMat(cv::GMat)>, "com.microsoft.u-net-semseg-network");
 
 // Here is our constructor. We don't need to do anything, as it is all taken care of by the parent class.
@@ -2059,14 +2072,14 @@ cv::GStreamingCompiled UnetSemanticSegmentationModel::compile_cv_graph() const
     // one will go through the neural network.
     cv::GMat network_input = cv::gapi::streaming::desync(preproc);
 
-    // Here's where we run the network. Again, this path is asynchronous.
-    auto nn = cv::gapi::infer<SemanticSegmentationUNet>(network_input);
-
     // Here's some more boilerplate. This gets you a frame index
     // and a timestamp. You don't need it, but we include it here
     // to show you how to get frame numbers and timestamps.
-    cv::GOpaque<int64_t> nn_seqno = cv::gapi::streaming::seqNo(nn);
-    cv::GOpaque<int64_t> nn_ts = cv::gapi::streaming::timestamp(nn);
+    cv::GOpaque<int64_t> nn_seqno = cv::gapi::streaming::seqNo(network_input);
+    cv::GOpaque<int64_t> nn_ts = cv::gapi::streaming::timestamp(network_input);
+
+    // Here's where we run the network. Again, this path is asynchronous.
+    auto nn = cv::gapi::infer<SemanticSegmentationUNet>(network_input);
 
     // Here's where we parse the output of our network with our custom parser code.
     // We'll implement this shortly (and it will look just like the code we used
@@ -2122,8 +2135,8 @@ bool UnetSemanticSegmentationModel::pull_data(cv::GStreamingCompiled &pipeline)
 
     // Because the outputs from the desynchronized G-API graph arrive
     // at different times, we cache the latest one each time it arrives.
-    cv::Mat last_raw_mat(128, 128, CV_8UC3, cv::Scalar(0, 0, 0)); // Give it some arbitrary dimensions (we'll overwrite it once we get something from the pipeline).
-    cv::Mat last_nn(128, 128, CV_8UC3, cv::Scalar(0, 0, 0));      // Ditto
+    cv::Mat last_raw_mat(256, 256, CV_8UC3, cv::Scalar(0, 0, 0)); // Give it some arbitrary dimensions (we'll overwrite it once we get something from the pipeline).
+    cv::Mat last_nn(256, 256, CV_8UC3, cv::Scalar(0, 0, 0));      // Ditto
     std::vector<float> last_coverages;
 
     // If we have a path to a video file, let's open it here.
@@ -2264,7 +2277,7 @@ void UnetSemanticSegmentationModel::handle_bgr_output(cv::optional<cv::Mat> &out
 
     // Now compose the result frame onto the copy of the original.
     // (We initialized last_nn with some arbitrary dimensions, so only
-    // try to compose a result image if we have something useful last_nn)
+    // try to compose a result image if we have something useful in last_nn)
     if (last_nn.size() == result_mat.size())
     {
         result_mat = (last_raw_mat / 2) + (last_nn / 2);
@@ -2315,7 +2328,7 @@ namespace cv {
 namespace gapi {
 namespace streaming { //  << This is pretty much the only change. For no good reason, we have a different namespace.
 
-/** We have this many classes for this network. We could have passed this in as an arg, too. */
+/** We have this many classes for this network. */
 #define N_CLASSES 5
 
 // Notice that this is an exact copy of what we had in the mock eye app.
@@ -2323,13 +2336,13 @@ G_API_OP(GParseUnetForSemSeg, <std::tuple<GMat, GArray<float>>(GMat)>, "org.micr
 {
     static std::tuple<GMatDesc, GArrayDesc> outMeta(const GMatDesc &in)
     {
-        auto desc = empty_gmat_desc().withSize({128, 128}).withType(CV_8U, 3);
+        auto desc = empty_gmat_desc().withSize({256, 256}).withType(CV_8U, 3);
         return {desc, empty_array_desc()};
     }
 };
 
-// Input: 32FC1 {5, 128, 128}  -- (i.e., 5, 128, 128)
-// Output: 32FC1 {128, 128}    -- (i.e., 1, 128, 128)
+// Input: 32FC1 {5, 256, 256}  -- (i.e., 5, 256, 256)
+// Output: 32FC1 {256, 256}    -- (i.e., 1, 256, 256)
 static void log_soft_argmax(const cv::Mat &mat, cv::Mat &ret)
 {
     // Check input image
@@ -2402,8 +2415,8 @@ static void log_soft_argmax(const cv::Mat &mat, cv::Mat &ret)
     }
 }
 
-// Input: 8UC1 {128, 128} -- (i.e. 1, 128, 128)
-// Output 8UC3 {128, 128}  -- (i.e. 3, 128, 128)
+// Input: 8UC1 {256, 256} -- (i.e. 1, 256, 256)
+// Output 8UC3 {256, 256}  -- (i.e. 3, 256, 256)
 static void convert_class_idx_to_rgb(const cv::Mat &mat, cv::Mat &ret)
 {
     CV_Assert(ret.dims == 2);
@@ -2619,13 +2632,13 @@ Once inside the Docker container, run the following commands:
 1. `cd /tmp`
 1. `mkdir build`
 1. `cd build`
-1. `cmake -DOpenCV_DIR=/eyesom/build/install/lib64/cmake/opencv4 -DmxIf_DIR=/eyesom/mxif/install/share/mxIf -DCMAKE_PREFIX_PATH=/onnxruntime/install/lib64 ..`
-1. `make -j4`
+1. `cmake -DOpenCV_DIR=/eyesom/build/install/lib64/cmake/opencv4 -DmxIf_DIR=/eyesom/mxif/install/share/mxIf -DCMAKE_PREFIX_PATH=/onnxruntime/install/lib64 -DCMAKE_BUILD_TYPE=Debug ..`
+1. `make -j4` (if this takes forever to complete, try just `make` instead).
 
 Let's test now by running `./inference --label=/tmp/labels.txt --model=/tmp/model.blob --parser=unet-seg`
 
-It will start printing log messages to the screen, and if you check the RTSP stream via VLC or some other media streaming application,
-you should be able to see something.
+It will start printing log messages to the screen, and if you check the RTSP stream via VLC (or some other media streaming application)
+at "rtsp://<ip-address>:8554/result" streaming application, you should be able to see something.
 
 You should now have successfully brought a brand new model from scratch all the way to the Azure Percept DK! Let's package the whole thing up
 so that you can deploy your custom azureeyemodule to the device from a container registry, and deploy your custom model from an Azure blob store.

@@ -74,6 +74,9 @@ $xmlfile = "/home/openvino/tmp/model.xml"
 $videofile = "/home/openvino/tmp/movie.mp4"
 
 # Now create the tmp directory and copy everything into it
+If (Test-Path "tmp") {
+    Remove-Item -Recurse -Force tmp
+}
 New-Item -Type Directory -Name tmp
 Copy-Item -Recurse kernels tmp/
 Copy-Item -Recurse modules tmp/
