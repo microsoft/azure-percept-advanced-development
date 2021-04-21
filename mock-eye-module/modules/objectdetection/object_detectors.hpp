@@ -2,12 +2,7 @@
  * Copyright (c) Microsoft Corporation.
  * Licensed under the MIT license.
  *
- * This module contains the code for YOLO and SSD. Faster-RCNN is in its own
- * module just to show another way of doing things, in case it is easier to understand.
- *
- * The Faster-RCNN example is much simpler, as it has everything in one function.
- * Once you understand that example, you should think about structuring your code more like
- * it is in this module.
+ * This module contains the code for SSD.
  */
 
 #pragma once

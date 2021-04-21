@@ -12,25 +12,9 @@ namespace parser {
 
 Parser look_up_parser(const std::string &parser_str)
 {
-    if (parser_str == "openpose")
+    if (parser_str == "ssd")
     {
-        return Parser::OPENPOSE;
-    }
-    else if (parser_str == "ssd100")
-    {
-        return Parser::SSD100;
-    }
-    else if (parser_str == "ssd200")
-    {
-        return Parser::SSD200;
-    }
-    else if (parser_str == "yolo")
-    {
-        return Parser::YOLO;
-    }
-    else if (parser_str == "faster-rcnn")
-    {
-        return Parser::FASTER_RCNN;
+        return Parser::SSD;
     }
     else
     {

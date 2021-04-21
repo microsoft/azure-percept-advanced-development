@@ -171,7 +171,7 @@ If you are on Linux (I don't have Mac, so I can't test it, but it probably works
 
 ```bash
 # Make sure you are in the mock-eye-module directory
-cd ../../mock-eye-module
+cd ../mock-eye-module
 ./scripts/compile_and_test.sh --video=<path to the video file> --weights=<path to the .bin> --xml=<path to the .xml>
 ```
 
@@ -182,7 +182,7 @@ for instructions. You will need to install VcXsrv and then launch it. Because yo
 over an XWindow server, you will need to give the Docker container your IP address.
 
 ```powershell
-cd ../../mock-eye-module
+cd ../mock-eye-module
 # You don't need the .bin file here because it figures it out from the .xml file, as long as they have
 # the same name and are in the same folder.
 # Why didn't I do this for the bash script too? I don't know.
@@ -197,12 +197,8 @@ it whenever the SSD network detects something above a certain confidence thresho
 We didn't bother feeding a labels file into this, so the labels are just numbers. It doesn't matter though,
 since the point is just to make sure it works.
 
-To stop it, hit CTRL-C and then run `docker ps` and `docker stop <whichever-container>`.
-
-If you are curious, you could try the same thing using OpenVINO Model Zoo's `faster_rcnn_resnet50_coco` (parser argument "faster-rcnn"),
-`yolo-v2-tiny-tf` (parser argument "yolo"), or OpenPose (parser argument "openpose"). The first two can be downloaded from the workbench, the OpenPose model
-can be [downloaded from here](https://download.01.org/opencv/2021/openvinotoolkit/2021.1/open_model_zoo/models_bin/1/human-pose-estimation-0001/FP32/).
-If you use any of these, you will need to give a --parser argument.
+To stop it, hit CTRL-C and then run `docker ps` and `docker stop <whichever-container>`, or just wait for the
+video to run out of frames and the program will exit cleanly on its own.
 
 ### Porting the Model to the Mock Eye Module
 
@@ -245,13 +241,9 @@ First, here's the .hpp file:
 // because maybe I forgot to update this documentation. But either way,
 // find this enum and update it to include "UNET_SEM_SEG" or whatever you want to call it.
 enum class Parser {
-    FASTER_RCNN,
-    OPENPOSE,
-    SSD100,
-    SSD200,
+    SSD,
     // Here's the new item
-    UNET_SEM_SEG,
-    YOLO
+    UNET_SEM_SEG
 };
 ```
 
@@ -260,25 +252,9 @@ Next, here's the .cpp file:
 ```C++
 Parser look_up_parser(const std::string &parser_str)
 {
-    if (parser_str == "openpose")
+    if (parser_str == "ssd")
     {
-        return Parser::OPENPOSE;
-    }
-    else if (parser_str == "ssd100")
-    {
-        return Parser::SSD100;
-    }
-    else if (parser_str == "ssd200")
-    {
-        return Parser::SSD200;
-    }
-    else if (parser_str == "yolo")
-    {
-        return Parser::YOLO;
-    }
-    else if (parser_str == "faster-rcnn")
-    {
-        return Parser::FASTER_RCNN;
+        return Parser::SSD;
     }
     else if (parser_str == "unet-seg") ///////// This is the new one
     {                                  /////////
@@ -304,7 +280,7 @@ Now update main.cpp:
 static const std::string keys =
 "{ h help    |        | Print this message }"
 "{ d device  | CPU    | Device to run inference on. Options: CPU, GPU, NCS2 }"
-"{ p parser  | ssd100 | Parser kind required for input model. Possible values: ssd100, ssd200, yolo, openpose, faster-rcnn, unet-seg }" // Update the help message
+"{ p parser  | ssd    | Parser kind required for input model. Possible values: ssd, unet-seg }" // Update the help message
 "{ w weights |        | Weights file }"
 "{ x xml     |        | Network XML file }"
 "{ labels    |        | Path to the labels file }"
@@ -317,18 +293,9 @@ static const std::string keys =
     std::vector<std::string> classes;
     switch (parser)
     {
-        case parser::Parser::OPENPOSE:
-            pose::compile_and_run(video_in, xml, weights, dev, show);
-            break;
-        case parser::Parser::SSD100:  // Fall-through
-        case parser::Parser::SSD200:  // Fall-through
-        case parser::Parser::YOLO:
+        case parser::Parser::SSD:
             classes = load_label(labelfile);
             detection::compile_and_run(video_in, parser, xml, weights, dev, show, classes);
-            break;
-        case parser::Parser::FASTER_RCNN:
-            classes = load_label(labelfile);
-            detection::rcnn::compile_and_run(video_in, xml, weights, dev, show, classes);
             break;
         case parser::Parser::UNET_SEM_SEG:                                        // NEW CODE
             classes = load_label(labelfile);                                      // NEW CODE

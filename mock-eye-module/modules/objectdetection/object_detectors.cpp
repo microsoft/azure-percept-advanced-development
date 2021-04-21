@@ -16,7 +16,6 @@
 
 // Our includes
 #include "../../kernels/ssd_kernels.hpp"
-#include "../../kernels/yolo_kernels.hpp"
 #include "../../kernels/utils.hpp"
 #include "../device.hpp"
 #include "object_detectors.hpp"
@@ -69,49 +68,6 @@ static cv::GStreamingCompiled build_inference_graph_ssd(const std::string &model
     return cs;
 }
 
-// This is the function that we use to build a G-API graph for the YOLO networks.
-// Feel free to copy it.
-static cv::GStreamingCompiled build_inference_graph_yolo(const std::string &modelfile, const std::string &weightsfile, const device::Device &device)
-{
-    // The input node. We will fill this in with OpenCV Mat objects as we get them from our video source.
-    cv::GMat in;
-
-    // Apply the network to the frame to produce a single output image
-    cv::GMat nn = cv::gapi::infer<ObjectDetector>(in);
-
-    // Get the size of the input image. We'll need this for later.
-    cv::GOpaque<cv::Size> sz = cv::gapi::custom::size(in);
-
-    // Copy the raw input. We'll use this for overlaying our detections on top of later.
-    cv::GMat bgr = cv::gapi::copy(in);
-
-    // Here we call our own custom G-API op on the neural network inferences and the size of the input image
-    // to get the bounding boxes, the predicted class labels, and our confidences.
-    // See the kernels/yolo.hpp and kernels/yolo.cpp files for the implementation of parse_yolo_with_confidences.
-    cv::GArray<cv::Rect> boxes;
-    cv::GArray<int> ids;
-    cv::GArray<float> confidences;
-    std::tie(boxes, ids, confidences) = cv::gapi::custom::parse_yolo_with_confidences(nn, sz);
-
-    // Set up the actual kernels (the implementations of the parser ops)
-    auto kernels = cv::gapi::combine(cv::gapi::kernels<cv::gapi::custom::GOCVParseYoloWithConf>(),
-                                     cv::gapi::kernels<cv::gapi::custom::GOCVSize>(),
-                                     cv::gapi::kernels<cv::gapi::custom::GOCVSizeR>());
-
-    // Bundle the GAPI params (this is also where we instantiate the backend - in this application,
-    // the backend is Inference Engine; in the Percept DK, it is a custom backend for the device).
-    auto net = cv::gapi::ie::Params<ObjectDetector>{ modelfile, weightsfile, device::device_to_string(device) };
-
-    // Set up the inputs and outputs of the graph.
-    auto comp = cv::GComputation(cv::GIn(in), cv::GOut(bgr, nn, boxes, ids, confidences));
-
-    // Now compile the graph.
-    auto compiled_args = cv::compile_args(cv::gapi::networks(net), kernels);
-    auto cs = comp.compileStreaming(std::move(compiled_args));
-
-    return cs;
-}
-
 /**
  * Builds the inference graph, but does not yet run it.
  *
@@ -128,12 +84,8 @@ static cv::GStreamingCompiled build_inference_graph(const std::string &video_in,
     cv::GStreamingCompiled cs;
     switch (parser)
     {
-        case parser::Parser::SSD100:  // Fall-through
-        case parser::Parser::SSD200:
+        case parser::Parser::SSD:
             cs = build_inference_graph_ssd(modelfile, weightsfile, device);
-            break;
-        case parser::Parser::YOLO:
-            cs = build_inference_graph_yolo(modelfile, weightsfile, device);
             break;
         default:
             std::cerr << "Have not yet implemented this Parser's logic." << std::endl;

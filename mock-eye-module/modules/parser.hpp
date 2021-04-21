@@ -14,11 +14,7 @@ namespace parser {
  * can read the parser type from the command line.
  */
 enum class Parser {
-    FASTER_RCNN,
-    OPENPOSE,
-    SSD100,
-    SSD200,
-    YOLO
+    SSD
 };
 
 /**

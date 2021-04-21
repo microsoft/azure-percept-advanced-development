@@ -49,7 +49,7 @@ param (
     [Alias('i')][Parameter(Mandatory=$true)][string]$ipaddr,
     [Alias('g')][switch]$debugmode = $False,
     [Alias('l')][ValidateScript({Test-Path $_ -PathType "Leaf"})][string]$labels,
-    [Alias('p')][string]$parser = "ssd100",
+    [Alias('p')][string]$parser = "ssd",
     [Alias('v')][ValidateScript({Test-Path $_ -PathType "Leaf"})][string]$video,
     [Alias('x')][Parameter(Mandatory=$true)][ValidateScript({Test-Path $_ -PathType "Leaf"})][string]$xml
 )

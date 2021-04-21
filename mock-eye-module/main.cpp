@@ -14,20 +14,16 @@
 #include <vector>
 
 // Local includes
-#include "kernels/ssd_kernels.hpp"
 #include "kernels/utils.hpp"
-#include "kernels/yolo_kernels.hpp"
 #include "modules/device.hpp"
-#include "modules/objectdetection/faster_rcnn.hpp"
 #include "modules/objectdetection/object_detectors.hpp"
 #include "modules/parser.hpp"
-#include "modules/openpose/pose_estimators.hpp"
 
 /** Arguments for this program (short-arg long-arg | default-value | help message) */
 static const std::string keys =
 "{ h help    |        | Print this message }"
 "{ d device  | CPU    | Device to run inference on. Options: CPU, GPU, NCS2 }"
-"{ p parser  | ssd100 | Parser kind required for input model. Possible values: ssd100, ssd200, yolo, openpose, faster-rcnn }"
+"{ p parser  | ssd    | Parser kind required for input model. Possible values: ssd }"
 "{ w weights |        | Weights file }"
 "{ x xml     |        | Network XML file }"
 "{ labels    |        | Path to the labels file }"
@@ -113,18 +109,9 @@ int main(int argc, char* argv[])
     std::vector<std::string> classes;
     switch (parser)
     {
-        case parser::Parser::OPENPOSE:
-            pose::compile_and_run(video_in, xml, weights, dev, show);
-            break;
-        case parser::Parser::SSD100:  // Fall-through
-        case parser::Parser::SSD200:  // Fall-through
-        case parser::Parser::YOLO:
+        case parser::Parser::SSD:
             classes = load_label(labelfile);
             detection::compile_and_run(video_in, parser, xml, weights, dev, show, classes);
-            break;
-        case parser::Parser::FASTER_RCNN:
-            classes = load_label(labelfile);
-            detection::rcnn::compile_and_run(video_in, xml, weights, dev, show, classes);
             break;
         default:
             std::cerr << "Programmer error: Please implement the appropriate logic for this Parser." << std::endl;
