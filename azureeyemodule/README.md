@@ -12,6 +12,7 @@ Significant portions of these experiences are subject to change without warning.
 1. [Building](#building)
 1. [Running](#running)
 1. [Extending and Customizing](#extending-and-customizing)
+1. [The Dockerfile](#the-dockerfile)
 
 ## Some Prerequisites
 
@@ -778,3 +779,30 @@ bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
     return true;
 }
 ```
+
+## The Dockerfile
+
+You can see that in this directory, we have a `Dockerfile.arm64v8`, which is used for building the azureeyemodule.
+At the top of that file, is this line:
+
+```dockerfile
+FROM mcr.microsoft.com/azureedgedevices/azureeyebase:latest-arm64v8
+```
+
+So, this Dockerfile extends a base image, called `azureeyebase`. There a few reasons for this approach:
+
+1. The azureeyebase image contains mostly libraries that do not change frequently and which take a long time to
+   compile and install. Having to run this image everytime you want to build the azureeyemodule would be terrible.
+1. We do not have the license to distribute the source for some of the components in the base image,
+   and so after we compile the libraries, we strip out the source code and leave only the headers and shared objects.
+1. This way, we build the base image, and you don't have to worry about it - when OpenVINO updates for example,
+   we deal with all the issues this creates behind the scenes, and there should be minimal churn for end-users.
+
+If you are interested, the base image contains the following:
+
+* A rootfs derived from Mariner OS.
+* LibUSB
+* ONNX Runtime
+* OpenCV (with some custom code written by Intel for the Azure Percept DK)
+* OpenVINO
+* Azure IoT C SDK
