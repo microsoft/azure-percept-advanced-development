@@ -801,8 +801,8 @@ So, this Dockerfile extends a base image, called `azureeyebase`. There a few rea
 If you are interested, the base image contains the following:
 
 * A rootfs derived from Mariner OS.
-* LibUSB
-* ONNX Runtime
-* OpenCV (with some custom code written by Intel for the Azure Percept DK)
-* OpenVINO
-* Azure IoT C SDK
+* LibUSB (version 1.0.22) - for dealing with USB peripherals (like the camera module)
+* ONNX Runtime (version 1.5.1) - for using ONNX models
+* OpenCV (custom version with some custom code written by Intel for the Azure Percept DK) - required for the G-API
+* OpenVINO (version 2021.1) - required for the Myriad X
+* Azure IoT C SDK (version LTS_02_2020_Ref01) - required for connecting to the cloud
