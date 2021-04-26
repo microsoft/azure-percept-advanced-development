@@ -527,7 +527,7 @@ static void connect(const StreamType &stream_type)
             break;
         case StreamType::H264_RAW:
             h264_context.factory = gst_rtsp_media_factory_new();
-            configure_rtsp_stream_factory_h264(h264_context.factory, rtsp_h264_source_name, GST_RTSP_LOWER_TRANS_UDP, (void *)&h264_context);
+            configure_rtsp_stream_factory_h264(h264_context.factory, rtsp_h264_source_name, GST_RTSP_LOWER_TRANS_TCP, (void *)&h264_context);
             gst_rtsp_mount_points_add_factory(mounts, h264_context.uri.c_str(), h264_context.factory);
             break;
         default:
