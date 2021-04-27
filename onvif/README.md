@@ -45,7 +45,6 @@ SSH over to your device and open port 3702 for UDP and port 8081 for TCP with th
 ```bash
 sudo iptables -A INPUT -p udp --dport 3702 -j ACCEPT
 sudo iptables -A INPUT -p tcp --dport 8081 -j ACCEPT
-sudo docker restart azureeyemodule
 ```
 
 This will need to be done every time you restart your device.
