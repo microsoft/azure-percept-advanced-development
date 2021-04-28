@@ -19,9 +19,9 @@ namespace streaming {
 using GClassificationsWithConf = std::tuple<GArray<int>, GArray<float>>;
 
 /** Classification op */
-G_API_OP(GParseClass, <GClassificationsWithConf(GMat, GOpaque<Size>, float)>, "org.opencv.dnn.parseClass")
+G_API_OP(GParseClass, <GClassificationsWithConf(GMat)>, "org.opencv.dnn.parseClass")
 {
-    static std::tuple<GArrayDesc, GArrayDesc> outMeta(const GMatDesc&, const GOpaqueDesc&, float)
+    static std::tuple<GArrayDesc, GArrayDesc> outMeta(const GMatDesc&)
     {
         return std::make_tuple(empty_array_desc(), empty_array_desc());
     }
@@ -30,33 +30,27 @@ G_API_OP(GParseClass, <GClassificationsWithConf(GMat, GOpaque<Size>, float)>, "o
 /** Kernel implementation of classification op */
 GAPI_OCV_KERNEL(GOCVParseClass, GParseClass)
 {
-    static void run(const Mat & in_result, const Size & in_size, float confidence_threshold, std::vector<int> & out_labels, std::vector<float> & out_confidences)
+    static void run(const Mat &in_result, std::vector<int> &out_labels, std::vector<float> &out_confidences)
     {
         const auto& in_dims = in_result.size;
+
+        // We expect a Tensor of shape (1, 1, 1, N)
+        CV_Assert(in_dims.dims() == 4);
 
         out_labels.clear();
         out_confidences.clear();
 
         const auto results = in_result.ptr<float>();
-        float max_confidence = 0;
-        int label = 0;
-
-        for (int i = 0; i < in_dims[1]; i++)
+        for (int i = 0; i < in_dims[3]; i++)
         {
-            if (results[i] > max_confidence)
-            {
-                label = i;
-                max_confidence = results[label];
-            }
+            out_labels.emplace_back(i);
+            out_confidences.emplace_back(results[i]);
         }
-
-        out_labels.emplace_back(label);
-        out_confidences.emplace_back(results[label]);
     }
 };
 
 /** C++ wrapper for classification op */
-GAPI_EXPORTS GClassificationsWithConf parseClass(const GMat& in, const GOpaque<Size>& in_sz, float confidence_threshold = 0.5f);
+GAPI_EXPORTS GClassificationsWithConf parse_class(const GMat& in);
 
 } // namespace streaming
 } // namespace gapi

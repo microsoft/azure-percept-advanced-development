@@ -47,7 +47,7 @@ private:
     void preview(const cv::Mat& rgb, const std::vector<int>& labels, const std::vector<float>& confidences) const;
 
     /** Handle the detector's output */
-    void handle_inference_output(const cv::optional<cv::Mat> &out_nn, const cv::optional<int64_t> &out_nn_ts, const cv::optional<int64_t> &out_nn_seqno,
+    void handle_inference_output(const cv::optional<int64_t> &out_nn_ts, const cv::optional<int64_t> &out_nn_seqno,
                                                       const cv::optional<std::vector<int>> &out_labels,
                                                       const cv::optional<std::vector<float>> &out_confidences, std::vector<int> &last_labels,
                                                       std::vector<float> &last_confidences);
