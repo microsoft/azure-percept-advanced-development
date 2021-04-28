@@ -1,0 +1,96 @@
+{
+    "modulesContent": {
+        "$edgeAgent": {
+            "properties.desired": {
+                "modules": {
+                    "azureeyemodule": {
+                        "settings": {
+                            "image": "mcr.microsoft.com/azureedgedevices/azureeyemodule:2102-2",
+                            "createOptions": "{\"NetworkingConfig\":{\"EndpointsConfig\":{\"host\":{}}},\"HostConfig\":{\"Binds\":[\"/dev/bus/usb:/dev/bus/usb\"],\"DeviceCgroupRules\":[\"c 189:* rmw\"],\"NetworkMode\":\"host\"}}"
+                        },
+                        "type": "docker",
+                        "version": "1.0",
+                        "status": "running",
+                        "restartPolicy": "always"
+                    },
+                    "azure-eye-onvif": {
+                        "settings": {
+                            "image": "mcr.microsoft.com/azureedgedevices/azureeyeonvifmodule:2102-2",
+                            "createOptions": "{\"NetworkingConfig\":{\"EndpointsConfig\":{\"host\":{}}},\"HostConfig\":{\"NetworkMode\":\"host\"}}"
+                        },
+                        "type": "docker",
+                        "version": "1.0",
+                        "status": "running",
+                        "restartPolicy": "always"
+                    }
+                },
+                "runtime": {
+                    "settings": {
+                        "minDockerVersion": "v1.25"
+                    },
+                    "type": "docker"
+                },
+                "schemaVersion": "1.0",
+                "systemModules": {
+                    "edgeAgent": {
+                        "settings": {
+                            "image": "mcr.microsoft.com/azureiotedge-agent:1.0",
+                            "createOptions": "{}"
+                        },
+                        "type": "docker",
+                        "env": {
+                            "BackupConfigFilePath": {
+                                "value": "/tmp/edgeAgent/backup.json"
+                            }
+                        }
+                    },
+                    "edgeHub": {
+                        "settings": {
+                            "image": "mcr.microsoft.com/azureiotedge-hub:1.0",
+                            "createOptions": "{\"HostConfig\":{\"PortBindings\":{\"5671/tcp\":[{\"HostPort\":\"5671\"}],\"8883/tcp\":[{\"HostPort\":\"8883\"}]}}}"
+                        },
+                        "type": "docker",
+                        "env": {
+                            "OptimizeForPerformance": {
+                                "value": "False"
+                            },
+                            "mqttSettings__ThreadCount": {
+                                "value": "4"
+                            },
+                            "SslProtocols": {
+                                "value": "tls1.2"
+                            }
+                        },
+                        "status": "running",
+                        "restartPolicy": "always"
+                    }
+                }
+            }
+        },
+        "$edgeHub": {
+            "properties.desired": {
+                "routes": {
+                    "AzureEyeModuleToIoTHub": "FROM /messages/modules/azureeyemodule/outputs/* INTO $upstream",
+                    "AzureEyeModuleToOnvif": "FROM /messages/modules/azure-eye-onvif/outputs/output1 INTO BrokeredEndPoint(\"modules/azureeyemodule/inputs/onvif-control-msg-input\")"
+                },
+                "schemaVersion": "1.0",
+                "storeAndForwardConfiguration": {
+                    "timeToLiveSecs": 7200
+                }
+            }
+        },
+        "azureeyemodule": {
+            "properties.desired": {
+                "Logging": true,
+                "ModelZipUrl": "",
+                "RawStream": true,
+                "ResultStream": true,
+                "Running": true,
+                "TelemetryInterval": 10
+            }
+        },
+        "azure-eye-onvif": {
+            "properties.desired": {}
+        }
+    }
+}
