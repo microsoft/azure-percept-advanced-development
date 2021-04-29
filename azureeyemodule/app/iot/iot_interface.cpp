@@ -257,6 +257,18 @@ static void send_iot_msg(IOTHUB_MODULE_CLIENT_LL_HANDLE client_handle, const Msg
         util::log_error("Could not set correlation ID for Azure IoT message we are trying to send. Msg ID: " + std::to_string(message_instance.tracking_id));
     }
 
+    result = IoTHubMessage_SetContentTypeSystemProperty(message_instance.handle, "application%2fjson");
+    if (result != IOTHUB_MESSAGE_OK)
+    {
+        util::log_error("Could not set content type for Azure IoT message we are trying to send. Msg ID: " + std::to_string(message_instance.tracking_id));
+    }
+
+    result = IoTHubMessage_SetContentEncodingSystemProperty(message_instance.handle, "utf-8");
+    if (result != IOTHUB_MESSAGE_OK)
+    {
+        util::log_error("Could not set content encoding for Azure IoT message we are trying to send. Msg ID: " + std::to_string(message_instance.tracking_id));
+    }
+
     auto res = IoTHubModuleClient_LL_SendEventToOutputAsync(client_handle, message_instance.handle, "AzureEyeModuleOutput", azure_iot_send_msg_callback, &message_instance);
     if (res != IOTHUB_CLIENT_OK)
     {
