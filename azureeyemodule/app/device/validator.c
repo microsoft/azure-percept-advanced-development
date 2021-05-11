@@ -305,7 +305,7 @@ static void LIBUSB_CALL callbackUSBTransferComplete(struct libusb_transfer *xfr)
             // Transfer the data from service to SoM
             else if (memcmp(xfr->buffer, ReceiveTLSDataFromService, 2) == 0)
             {
-                int expectedLen;
+                unsigned int expectedLen;
                 memcpy(&expectedLen, xfr->buffer + 2, 4);
 #ifdef AUTH_LOG
                 fprintf(stdout, "Tried to get TLS data from service: %d\n", expectedLen);

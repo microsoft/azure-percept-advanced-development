@@ -7,6 +7,10 @@ Please consider providing feedback
 via this [questionnaire](https://forms.office.com/Pages/ResponsePage.aspx?id=v4j5cvGGr0GRqy180BHbRzoJxrXKT0dEvfQyxsA0h8lUMzE0V0pCTFU4UUVSS0xTRUtNT0hZSEs1Ry4u).
 Your feedback will help us continue to fine-tune and improve the advanced tools experience.
 
+## Releases
+
+All the releases are tagged with [release notes here](https://github.com/microsoft/azure-percept-advanced-development/tags).
+
 ## Overview
 
 This repository holds all the code and documentation for advanced development using the Azure Percept DK.
