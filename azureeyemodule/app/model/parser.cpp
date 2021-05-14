@@ -50,7 +50,7 @@ Parser from_string(const std::string &parser_str)
     {
         return Parser::ONNXSSD;
     }
-    else if (parser_str == "unet") 
+    else if (parser_str == "unet")
     {
         return Parser::UNET;
     }
@@ -64,7 +64,6 @@ Parser from_string(const std::string &parser_str)
         exit(__LINE__);
     }
 }
-
 
 std::string to_string(const Parser &p)
 {
