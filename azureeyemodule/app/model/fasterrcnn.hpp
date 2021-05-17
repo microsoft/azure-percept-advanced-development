@@ -24,11 +24,18 @@ namespace model {
 class FasterRCNNModel : public ObjectDetector
 {
 public:
-    FasterRCNNModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution);
+    FasterRCNNModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd,
+                    const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, const std::string &json_configuration);
 
     void run(cv::GStreamingCompiled* pipeline) override;
 
 private:
+    /** We filter out all detected objects that are les than this value in confidence. */
+    double confidence_threshold;
+
+    /** If not -1, we filter out all classes except this class number. */
+    int filter_label;
+
     /** Compile the pipeline graph for Faster RCNN. */
     cv::GStreamingCompiled compile_cv_graph() const;
 

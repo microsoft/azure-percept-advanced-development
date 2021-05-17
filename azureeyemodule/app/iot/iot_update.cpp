@@ -14,13 +14,13 @@
 #include "iothub_client_options.h"
 #include "iothubtransportmqtt.h"
 #include "iothub.h"
-#include "parson.h"
 
 // Local includes
 #include "iot_update.hpp"
 #include "../streaming/rtsp.hpp"
-#include "../util/helper.hpp"
 #include "../secure_ai/secureai.hpp"
+#include "../util/helper.hpp"
+#include "../util/json.hpp"
 
 namespace iot {
 namespace update {
@@ -36,6 +36,9 @@ static update_telemetry_interval_cb_t update_telemetry_interval_cb = nullptr;
 
 /** The callback for updating the resolution in the model pipeline. */
 static update_resolution_cb_t update_resolution_cb = nullptr;
+
+/** This callback checks if the given model configuration JSON is different than the model's current one. */
+static check_model_config_cb_t check_model_config_cb = nullptr;
 
 /** Update the intervals for the telemetry channels. */
 static void update_telemetry_intervals(unsigned long int nn_interval_ms)
@@ -63,7 +66,7 @@ static void update_retraining_data_collection_parameters(bool enable, unsigned l
 }
 
 /** Update the neural network model using the callback */
-static void update_model(const std::string &data)
+static void update_model(const std::string &data, const std::string &model_config)
 {
     if (update_cb == nullptr)
     {
@@ -72,11 +75,11 @@ static void update_model(const std::string &data)
     }
 
     // Update the model
-    (*update_cb)(data, false);
+    (*update_cb)(data, false, model_config);
 }
 
 /** Update via the secure AI lifecycle pathway. */
-static void update_model(const secure::SecureAIParams &params)
+static void update_model(const secure::SecureAIParams &params, const std::string &model_config)
 {
     if (update_cb == nullptr)
     {
@@ -85,48 +88,45 @@ static void update_model(const secure::SecureAIParams &params)
     }
 
     // Update the model
-    (*update_cb)(params.to_string(), true);
+    (*update_cb)(params.to_string(), true, model_config);
+}
+
+/** Checks if the model parameters are different from the ones we are currently using. */
+static bool check_if_model_params_are_different(const std::string &model_config_json)
+{
+    if (check_model_config_cb == nullptr)
+    {
+        util::log_info("Attempting to check if model config is different before there is an associated callback function.");
+        return false;
+    }
+
+    return (*check_model_config_cb)(model_config_json);
 }
 
 /** Parse out the logging stuff from the module twin. Here we update our log level based on module twin. */
-static void parse_logging(JSON_Object *root_object)
+static void parse_logging(const std::string &json_str)
 {
-    if (json_object_dotget_value(root_object, "desired.Logging") != nullptr)
+    bool log_verbose;
+    if (json::try_parse_string<bool>(json_str, "desired.Logging", log_verbose))
     {
-        util::set_logging(json_object_dotget_boolean(root_object, "desired.Logging"));
-    }
-    if (json_object_get_value(root_object, "Logging") != nullptr)
-    {
-        util::set_logging(json_object_get_boolean(root_object, "Logging"));
+        util::set_logging(log_verbose);
     }
 }
 
 /** Parse the retraining stuff out of the module twin. */
-static void parse_retraining(JSON_Object *root_object)
+static void parse_retraining(const std::string &json_str)
 {
     bool got_something = false;
     bool enable = false;
     int interval = 0;
 
-    if (json_object_dotget_value(root_object, "desired.RetrainingDataCollectionEnabled") != nullptr)
+    if (json::try_parse_string<bool>(json_str, "desired.RetrainingDataCollectionEnabled", enable))
     {
-        enable = json_object_dotget_boolean(root_object, "desired.RetrainingDataCollectionEnabled");
-        got_something = true;
-    }
-    if (json_object_get_value(root_object, "RetrainingDataCollectionEnabled") != nullptr)
-    {
-        enable = json_object_get_boolean(root_object, "RetrainingDataCollectionEnabled");
         got_something = true;
     }
 
-    if (json_object_dotget_value(root_object, "desired.RetrainingDataCollectionInterval") != nullptr)
+    if (json::try_parse_string<int>(json_str, "desired.RetrainingDataCollectionInterval", interval))
     {
-        interval = json_object_dotget_number(root_object, "desired.RetrainingDataCollectionInterval");
-        got_something = true;
-    }
-    if (json_object_get_value(root_object, "RetrainingDataCollectionInterval") != nullptr)
-    {
-        interval = json_object_get_number(root_object, "RetrainingDataCollectionInterval");
         got_something = true;
     }
 
@@ -159,8 +159,9 @@ static void parse_retraining(JSON_Object *root_object)
  * If we are now enabled, and if any model parameters change,
  * we attempt to update using the secure AI route.
  */
-static void parse_model_update(JSON_Object *root_object)
+static void parse_model_update(const std::string &json_str)
 {
+    JSON_Object *model_config = nullptr;
     std::string model_name = "";
     std::string model_version = "";
     std::string mm_server_url = "";
@@ -169,61 +170,24 @@ static void parse_model_update(JSON_Object *root_object)
     bool download_model_from_mm_server = true;
     bool parameters_changed = false; // We don't want to update the model unless we changed something about its configuration
 
-    if (json_object_dotget_value(root_object, "desired.SCZ_MODEL_NAME") != nullptr)
-    {
-        model_name = json_object_dotget_string(root_object, "desired.SCZ_MODEL_NAME");
-    }
-    if (json_object_get_value(root_object, "SCZ_MODEL_NAME") != nullptr)
-    {
-        model_name = json_object_get_string(root_object, "SCZ_MODEL_NAME");
-    }
+    // Get everything from the JSON
+    json::try_parse_string<JSON_Object*>(json_str, "desired.ModelConfiguration", model_config);
+    json::try_parse_string<std::string>(json_str, "desired.SCZ_MODEL_NAME", model_name);
+    json::try_parse_string<std::string>(json_str, "desired.SCZ_MODEL_VERSION", model_version);
+    json::try_parse_string<std::string>(json_str, "desired.SCZ_MM_SERVER_URL", mm_server_url);
+    json::try_parse_string<bool>(json_str, "desired.SecureAILifecycleEnabled", enable_secure_ai);
+    json::try_parse_string<bool>(json_str, "desired.DownloadSecuredModelFromMMServer", download_model_from_mm_server);
+    json::try_parse_string<std::string>(json_str, "desired.ModelZipUrl", model_url);
 
-    if (json_object_dotget_value(root_object, "desired.SCZ_MODEL_VERSION") != nullptr)
+    // Convert the model_config (if we have one) to a JSON string
+    std::string model_config_json = "";
+    if (model_config != nullptr)
     {
-        model_version = json_object_dotget_string(root_object, "desired.SCZ_MODEL_VERSION");
-    }
-    if (json_object_get_value(root_object, "SCZ_MODEL_VERSION") != nullptr)
-    {
-        model_version = json_object_get_string(root_object, "SCZ_MODEL_VERSION");
-    }
-
-    if (json_object_dotget_value(root_object, "desired.SCZ_MM_SERVER_URL") != nullptr)
-    {
-        mm_server_url = json_object_dotget_string(root_object, "desired.SCZ_MM_SERVER_URL");
-    }
-    if (json_object_get_value(root_object, "SCZ_MM_SERVER_URL") != nullptr)
-    {
-        mm_server_url = json_object_get_string(root_object, "SCZ_MM_SERVER_URL");
-    }
-
-    if (json_object_dotget_value(root_object, "desired.SecureAILifecycleEnabled") != nullptr)
-    {
-        enable_secure_ai = json_object_dotget_boolean(root_object, "desired.SecureAILifecycleEnabled");
-    }
-    if (json_object_get_value(root_object, "SecureAILifecycleEnabled") != nullptr)
-    {
-        enable_secure_ai = json_object_get_boolean(root_object, "SecureAILifecycleEnabled");
-    }
-
-    if (json_object_dotget_value(root_object, "desired.DownloadSecuredModelFromMMServer") != nullptr)
-    {
-        download_model_from_mm_server = json_object_dotget_boolean(root_object, "desired.DownloadSecuredModelFromMMServer");
-    }
-    if (json_object_get_value(root_object, "DownloadSecuredModelFromMMServer") != nullptr)
-    {
-        download_model_from_mm_server = json_object_get_boolean(root_object, "DownloadSecuredModelFromMMServer");
-    }
-
-    if (json_object_dotget_value(root_object, "desired.ModelZipUrl") != nullptr)
-    {
-        model_url = json_object_dotget_string(root_object, "desired.ModelZipUrl");
-    }
-    if (json_object_get_value(root_object, "ModelZipUrl") != nullptr)
-    {
-        model_url = json_object_get_string(root_object, "ModelZipUrl");
+        model_config_json = json::object_to_string(model_config);
     }
 
     parameters_changed = secure::update_secure_model_params(mm_server_url, model_name, model_version, enable_secure_ai, download_model_from_mm_server, model_url);
+    parameters_changed = parameters_changed || check_if_model_params_are_different(model_config_json);
 
     if (enable_secure_ai && parameters_changed)
     {
@@ -232,7 +196,7 @@ static void parse_model_update(JSON_Object *root_object)
             if (download_model_from_mm_server || (!download_model_from_mm_server && !model_url.empty()))
             {
                 // We have enabled secure AI and we find the model config changes from the previous version. So we should update using the secure route now.
-                update_model(secure::get_model_params());
+                update_model(secure::get_model_params(), model_config_json);
             }
             else
             {
@@ -247,73 +211,46 @@ static void parse_model_update(JSON_Object *root_object)
     else if (!enable_secure_ai && parameters_changed)
     {
         // We have disabled secure AI and and we find the model config changes from the previous version. So we should update using the normal route now.
-        update_model(model_url);
+        update_model(model_url, model_config_json);
     }
 }
 
 /** Parse the RTSP stream stuff and set the RTSP stuff based on what we find in the module twin. */
-static void parse_streams(JSON_Object *root_object)
+static void parse_streams(const std::string &json_str)
 {
-    if (json_object_dotget_value(root_object, "desired.RawStream") != nullptr)
+    bool enable_raw_stream;
+    if (json::try_parse_string<bool>(json_str, "desired.RawStream", enable_raw_stream))
     {
-        rtsp::set_stream_params(rtsp::StreamType::RAW, (bool)json_object_dotget_boolean(root_object, "desired.RawStream"));
-    }
-    if (json_object_get_value(root_object, "RawStream") != nullptr)
-    {
-        rtsp::set_stream_params(rtsp::StreamType::RAW, (bool)json_object_dotget_boolean(root_object, "RawStream"));
+        rtsp::set_stream_params(rtsp::StreamType::RAW, enable_raw_stream);
     }
 
-    if (json_object_dotget_value(root_object, "desired.ResultStream") != nullptr)
+    bool enable_result_stream;
+    if (json::try_parse_string<bool>(json_str, "desired.ResultStream", enable_result_stream))
     {
-        rtsp::set_stream_params(rtsp::StreamType::RESULT, (bool)json_object_dotget_boolean(root_object, "desired.ResultStream"));
-    }
-    if (json_object_get_value(root_object, "ResultStream") != nullptr)
-    {
-        rtsp::set_stream_params(rtsp::StreamType::RESULT, (bool)json_object_dotget_boolean(root_object, "ResultStream"));
+        rtsp::set_stream_params(rtsp::StreamType::RESULT, enable_result_stream);
     }
 
-    if (json_object_dotget_value(root_object, "desired.StreamFPS") != nullptr)
+    int fps;
+    if (json::try_parse_string<int>(json_str, "desired.StreamFPS", fps))
     {
-        auto fps = json_object_dotget_number(root_object, "desired.StreamFPS");
-        rtsp::set_stream_params(rtsp::StreamType::RAW, (int)fps);
-        rtsp::set_stream_params(rtsp::StreamType::RESULT, (int)fps);
-    }
-    if (json_object_dotget_value(root_object, "StreamFPS") != nullptr)
-    {
-        auto fps = json_object_dotget_number(root_object, "StreamFPS");
-        rtsp::set_stream_params(rtsp::StreamType::RAW, (int)fps);
-        rtsp::set_stream_params(rtsp::StreamType::RESULT, (int)fps);
+        rtsp::set_stream_params(rtsp::StreamType::RAW, fps);
+        rtsp::set_stream_params(rtsp::StreamType::RESULT, fps);
     }
 
     std::string resolution;
     std::string old_resolution = rtsp::get_resolution(rtsp::StreamType::RAW); // Right now all streams use the same resolution
     bool changed = false;
-    if (json_object_dotget_value(root_object, "desired.StreamResolution") != nullptr)
+    if (json::try_parse_string<std::string>(json_str, "desired.StreamResolution", resolution))
     {
-        resolution = std::string(json_object_dotget_string(root_object, "desired.StreamResolution"));
-        if (rtsp::is_valid_resolution(std::string(resolution)))
+        if (rtsp::is_valid_resolution(resolution))
         {
-            rtsp::set_stream_params(rtsp::StreamType::RAW, std::string(resolution));
-            rtsp::set_stream_params(rtsp::StreamType::RESULT, std::string(resolution));
+            rtsp::set_stream_params(rtsp::StreamType::RAW, resolution);
+            rtsp::set_stream_params(rtsp::StreamType::RESULT, resolution);
             changed = old_resolution != resolution;
         }
         else
         {
-            util::log_error("Invalid resolution setting: " + std::string(resolution));
-        }
-    }
-    if (json_object_dotget_value(root_object, "StreamResolution") != nullptr)
-    {
-        resolution = std::string(json_object_dotget_string(root_object, "StreamResolution"));
-        if (rtsp::is_valid_resolution(std::string(resolution)))
-        {
-            rtsp::set_stream_params(rtsp::StreamType::RAW, std::string(resolution));
-            rtsp::set_stream_params(rtsp::StreamType::RESULT, std::string(resolution));
-            changed = old_resolution != resolution;
-        }
-        else
-        {
-            util::log_error("Invalid resolution setting: " + std::string(resolution));
+            util::log_error("Invalid resolution setting: " + resolution);
         }
     }
 
@@ -330,17 +267,11 @@ static void parse_streams(JSON_Object *root_object)
 }
 
 /** Parse telemetry stuff. */
-static void parse_telemetry(JSON_Object *root_object)
+static void parse_telemetry(const std::string &json_str)
 {
-    if (json_object_dotget_value(root_object, "desired.TelemetryIntervalNeuralNetworkMs") != nullptr)
+    int nn_tel_interval_ms;
+    if (json::try_parse_string<int>(json_str, "desired.TelemetryIntervalNeuralNetworkMs", nn_tel_interval_ms))
     {
-        auto nn_tel_interval_ms = json_object_dotget_number(root_object, "desired.TelemetryIntervalNeuralNetworkMs");
-        util::log_info("Telemetry interval for neural network messages (ms): " + std::to_string(nn_tel_interval_ms));
-        update_telemetry_intervals(nn_tel_interval_ms);
-    }
-    if (json_object_get_value(root_object, "TelemetryIntervalNeuralNetworkMs") != nullptr)
-    {
-        auto nn_tel_interval_ms = json_object_get_number(root_object, "TelemetryIntervalNeuralNetworkMs");
         util::log_info("Telemetry interval for neural network messages (ms): " + std::to_string(nn_tel_interval_ms));
         update_telemetry_intervals(nn_tel_interval_ms);
     }
@@ -351,15 +282,14 @@ static void module_twin_callback(DEVICE_TWIN_UPDATE_STATE update_state, const un
 {
     util::log_info("module twin callback called with (state=" + std::string(MU_ENUM_TO_STRING(DEVICE_TWIN_UPDATE_STATE, update_state)) + ", size=" + std::to_string(size) + "): " + reinterpret_cast<const char*>(payload));
 
-    JSON_Value *root_value = json_parse_string(reinterpret_cast<const char*>(payload));
-    JSON_Object *root_object = json_value_get_object(root_value);
+    std::string json_str(reinterpret_cast<const char *>(payload));
 
     // Parse out all the stuff and deal with it
-    parse_logging(root_object);
-    parse_retraining(root_object);
-    parse_telemetry(root_object);
-    parse_model_update(root_object);
-    parse_streams(root_object);
+    parse_logging(json_str);
+    parse_retraining(json_str);
+    parse_telemetry(json_str);
+    parse_model_update(json_str);
+    parse_streams(json_str);
 }
 
 void restart_model_with_new_resolution(const std::string &resolution)
@@ -402,6 +332,11 @@ void set_update_resolution_callback(update_resolution_cb_t callback)
 void set_update_telemetry_intervals_callback(update_telemetry_interval_cb_t callback)
 {
     update_telemetry_interval_cb = callback;
+}
+
+void set_check_model_config_callback(check_model_config_cb_t callback)
+{
+    check_model_config_cb = callback;
 }
 
 } // namespace update

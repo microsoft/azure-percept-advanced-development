@@ -18,6 +18,7 @@
 #include "../kernels/ssd_kernels.hpp"
 #include "../streaming/rtsp.hpp"
 #include "../util/helper.hpp"
+#include "../util/json.hpp"
 #include "../util/labels.hpp"
 
 
@@ -32,10 +33,16 @@ namespace model {
  */
 G_API_NET(FasterRCNNNetwork, <cv::GMat(cv::GMat)>, "faster-rcnn-network");
 
+static const double DEFAULT_CONFIDENCE_THRESHOLD = 0.5;
 
-FasterRCNNModel::FasterRCNNModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution)
+/** -1 means no label filtering. */
+static const int DEFAULT_FILTER_LABEl = -1;
+
+FasterRCNNModel::FasterRCNNModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, const std::string &json_configuration)
     : ObjectDetector{ labelfpath, modelfpaths, mvcmd, videofile, resolution }
 {
+    this->confidence_threshold = json::parse_string(json_configuration, "FasterRCNNConfidenceThreshold", DEFAULT_FILTER_LABEl);
+    this->filter_label = json::parse_string(json_configuration, "FasterRCNNFilterLabel", DEFAULT_FILTER_LABEl);
 }
 
 void FasterRCNNModel::run(cv::GStreamingCompiled* pipeline)
@@ -95,7 +102,7 @@ cv::GStreamingCompiled FasterRCNNModel::compile_cv_graph() const
     cv::GArray<float> cfs;
 
     // Faster RCNN can use the exact same parser as SSD
-    std::tie(rcs, ids, cfs) = cv::gapi::streaming::parseSSDWithConf(nn, sz);
+    std::tie(rcs, ids, cfs) = cv::gapi::streaming::parseSSDWithConf(nn, sz, this->confidence_threshold, this->filter_label);
 
     // Now specify the computation's boundaries
     auto graph = cv::GComputation(cv::GIn(in),

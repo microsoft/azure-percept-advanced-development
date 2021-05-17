@@ -18,6 +18,7 @@
 #include "../kernels/ssd_kernels.hpp"
 #include "../streaming/rtsp.hpp"
 #include "../util/helper.hpp"
+#include "../util/json.hpp"
 #include "../util/labels.hpp"
 
 
@@ -26,10 +27,16 @@ namespace model {
 /** An SSD network takes a single input and outputs a single output (which we will parse into boxes, labels, and confidences) */
 G_API_NET(SSDNetwork, <cv::GMat(cv::GMat)>, "ssd-network");
 
+static const double DEFAULT_CONFIDENCE_THRESHOLD = 0.5;
 
-SSDModel::SSDModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution)
+/** -1 means do not use any filters for the labels. */
+static const int DEFAULT_FILTER_LABEL = -1;
+
+SSDModel::SSDModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, const std::string &json_configuration)
     : ObjectDetector{ labelfpath, modelfpaths, mvcmd, videofile, resolution }
 {
+    this->confidence_threshold = json::parse_string<double>(json_configuration, "SSDConfidenceThreshold", DEFAULT_CONFIDENCE_THRESHOLD);
+    this->filter_label = json::parse_string<int>(json_configuration, "SSDFilterLabel", DEFAULT_FILTER_LABEL);
 }
 
 void SSDModel::load_default()
@@ -101,7 +108,7 @@ cv::GStreamingCompiled SSDModel::compile_cv_graph() const
     cv::GArray<int> ids;
     cv::GArray<float> cfs;
 
-    std::tie(rcs, ids, cfs) = cv::gapi::streaming::parseSSDWithConf(nn, sz);
+    std::tie(rcs, ids, cfs) = cv::gapi::streaming::parseSSDWithConf(nn, sz, this->confidence_threshold, this->filter_label);
 
     // Now specify the computation's boundaries
     auto graph = cv::GComputation(cv::GIn(in),

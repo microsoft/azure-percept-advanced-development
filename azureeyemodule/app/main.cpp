@@ -61,15 +61,18 @@ static std::string update_model_data = "";
 /** Update using the secure AI lifecycle stuff. */
 static bool update_using_secure_ai = false;
 
+/** Configuration for models that use extra parameters. */
+static std::string update_model_configuration_json = "{}";
+
 /** We tell the model to stop running and return so we can update it. */
-static void update_model(const std::string &data, bool secure)
+static void update_model(const std::string &data, bool secure, const std::string &model_config_json)
 {
     if (the_model == nullptr)
     {
         util::log_error("Trying to update the model before we have a model to update.");
         return;
     }
-    else if ((data == update_model_data) && (update_using_secure_ai == secure))
+    else if ((data == update_model_data) && (update_using_secure_ai == secure) && (update_model_configuration_json == model_config_json))
     {
         util::log_info("Foregoing model update, as the model meta data has not changed.");
         return;
@@ -78,6 +81,7 @@ static void update_model(const std::string &data, bool secure)
     util::log_info("update data: " + data + ", secure: " + (secure ? "true" : "false"));
     update_using_secure_ai = secure;
     update_model_data = data;
+    update_model_configuration_json = model_config_json;
     the_model->set_update_flag();
 }
 
@@ -120,7 +124,8 @@ static void interrupt(int sig)
 }
 
 static void determine_model_type(const std::string &labelfile, const std::vector<std::string> &modelfiles, const std::string &mvcmd,
-                                 const std::string &videofile, const model::parser::Parser &parser_type, const cv::gapi::mx::Camera::Mode &resolution, bool quit_on_failure)
+                                 const std::string &videofile, const model::parser::Parser &parser_type, const cv::gapi::mx::Camera::Mode &resolution,
+                                 bool quit_on_failure, const std::string &json_configuration)
 {
     the_model = nullptr;
     switch (parser_type)
@@ -135,15 +140,15 @@ static void determine_model_type(const std::string &labelfile, const std::vector
             the_model = new model::OCRModel(modelfiles, mvcmd, videofile, resolution);
             break;
         case model::parser::Parser::S1:
-            the_model = new model::S1Model(labelfile, modelfiles, mvcmd, videofile, resolution);
+            the_model = new model::S1Model(labelfile, modelfiles, mvcmd, videofile, resolution, json_configuration);
             break;
         case model::parser::Parser::SSD100: // fall-through
         case model::parser::Parser::SSD200: // fall-through
         case model::parser::Parser::DEFAULT:
-            the_model = new model::SSDModel(labelfile, modelfiles, mvcmd, videofile, resolution);
+            the_model = new model::SSDModel(labelfile, modelfiles, mvcmd, videofile, resolution, json_configuration);
             break;
         case model::parser::Parser::YOLO:
-            the_model = new model::YoloModel(labelfile, modelfiles, mvcmd, videofile, resolution);
+            the_model = new model::YoloModel(labelfile, modelfiles, mvcmd, videofile, resolution, json_configuration);
             break;
         case model::parser::Parser::ONNXSSD:
             the_model = new model::ONNXSSDModel(labelfile, modelfiles, mvcmd, videofile, resolution);
@@ -152,7 +157,7 @@ static void determine_model_type(const std::string &labelfile, const std::vector
             the_model = new model::BinaryUnetModel(modelfiles, mvcmd, videofile, resolution);
             break;
         case model::parser::Parser::FASTER_RCNN_RESNET50:
-            the_model = new model::FasterRCNNModel(labelfile, modelfiles, mvcmd, videofile, resolution);
+            the_model = new model::FasterRCNNModel(labelfile, modelfiles, mvcmd, videofile, resolution, json_configuration);
             break;
         default:
             util::log_error("No parser for the given model type: " + model::parser::to_string(parser_type));
@@ -210,7 +215,7 @@ static void load_new_model(const std::string &mvcmd, const std::string &videofil
     }
 
     // Fill in the model values based on the type
-    determine_model_type(labelfile, modelfiles, mvcmd, videofile, modeltype, resolution, quit_on_failure);
+    determine_model_type(labelfile, modelfiles, mvcmd, videofile, modeltype, resolution, quit_on_failure, update_model_configuration_json);
 }
 
 /** This function stops the MyriadX pipeline and wait for 2 seconds as Intel suggested */
@@ -297,7 +302,7 @@ int main(int argc, char** argv)
     }
 
     // Fill in `the_model` with the appropriate type of model
-    determine_model_type(labelfile, modelfiles, mvcmd, videofile, parser_type, resolution, quit_on_failure);
+    determine_model_type(labelfile, modelfiles, mvcmd, videofile, parser_type, resolution, quit_on_failure, update_model_configuration_json);
 
     // See if the device is already opened, if not, open it and authenticate
     bool opened_usb_device = device::open_device();

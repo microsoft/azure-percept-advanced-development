@@ -24,7 +24,8 @@ namespace model {
 class SSDModel : public ObjectDetector
 {
 public:
-    SSDModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution);
+    SSDModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd,
+             const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, const std::string &json_configuration);
 
     /**
      * The SSD model acts as our default model in case we don't get direction
@@ -35,6 +36,12 @@ public:
     void run(cv::GStreamingCompiled* pipeline) override;
 
 private:
+    /** We filter out all detected objects that are less than this value in confidence. */
+    double confidence_threshold;
+
+    /** If not -1, we filter out all detections except the class matching this number. */
+    int filter_label;
+
     /** Compile the pipeline graph for SSD. */
     cv::GStreamingCompiled compile_cv_graph() const;
 

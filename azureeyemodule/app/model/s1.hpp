@@ -20,11 +20,18 @@ namespace model {
 class S1Model : public ObjectDetector
 {
 public:
-    S1Model(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution);
+    S1Model(const std::string &labelfpath, const std::vector<std::string> &modelfpaths,
+            const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, const std::string &json_configuration);
 
     void run(cv::GStreamingCompiled* pipeline) override;
 
 private:
+    /** We filter out all detected objects that are less than this value in confidence. */
+    double confidence_threshold;
+
+    /** We reject all detections whose bounding boxes overlap with higher-confidence boxes if they overlap by at least this much. */
+    double nms_threshold;
+
     /** Compile the pipeline graph for S1. */
     cv::GStreamingCompiled compile_cv_graph() const;
 

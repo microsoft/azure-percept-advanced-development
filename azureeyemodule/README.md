@@ -145,6 +145,76 @@ These are the allowed values for this IoT Module's twin:
 * `StreamResolution`: String. Must be one of `native`, `1080p`, or `720p`. Sets the resolution of the camera feed.
 * `TelemetryIntervalNeuralNetworkMs`: Integer. Determines how often to send messages from the neural network. Sends a message at most once every this
   many milliseconds. Please note that Azure subscriptions have a limited number of messages per day (depending on the subscription tier).
+* `ModelConfiguration`: JSON dictionary. This is a dictionary of keys and values which specify behaviors specific to whichever model is running.
+  This is optional, and each model has its own set of keys and allowed values. See below.
+
+### ModelConfiguration
+
+These values are JSON dicts/objects that can be specified for particular models to configure them in ways that are specific to them.
+For example, you could set:
+
+```JSON
+{
+  "ModelConfiguration": {
+    "SSDConfidenceThreshold": 0.6,
+    "SSDFilterLabel": 5
+  }
+}
+```
+
+if you were using the provided SSD parser and wanted to filter out all classes except for class 5,
+and filter out any items whose confidence score was less than 0.6.
+
+If you are not using the SSD parser ('DomainType' is not set to 'ssd100' or 'ssd200' in the model zip's config.json file),
+then we would ignore this module twin field in this example.
+
+#### BinaryUNetModel
+
+There are currently no additional configurations for this model.
+
+#### ClassificationModel
+
+There are currently no additional configurations for this model.
+
+#### FasterRCNNModel
+
+* `FasterRCNNConfidenceThreshold`: Float. When using the SSD parser (which is what we use for Faster RCNN), we filter out all detected objects that are less than
+  this value in confidence. Default is 0.5.
+* `FasterRCNNFilterLabel`: Integer. If given, we filter out all detections except for this class (which should be the integer
+  of the class, not the name). Default is -1, which means no filter.
+
+#### OCRModel
+
+There are currently no additional configurations for this model.
+
+#### OpenPoseModel
+
+There are currently no additional configurations for this model.
+
+#### S1Model
+
+This is the parser used with Custom Vision object detection models.
+
+* `S1ConfidenceThreshold`: Float. When using this parser, we filter out all detected objects that are less than
+  this value in confidence. Default is 0.5.
+* `S1NMSThreshold`: Float. Non-maximal-suppression threshold. If less than 1.0, we reject all detections whose bounding
+  boxes overlap with higher-confidence boxes if they overlap by at least this much (using a Jaccard distance).
+  If value is greater than or equal to 1.0, no NMS is applied. Default is 0.5.
+
+#### SSD
+
+* `SSDConfidenceThreshold`: Float. When using the SSD parser, we filter out all detected objects that are less than
+  this value in confidence. Default is 0.5.
+* `SSDFilterLabel`: Integer. If given, we filter out all detections except for this class (which should be the integer
+  of the class, not the name). Default is -1, which means no filter.
+
+#### YoloModel
+
+* `YoloConfidenceThreshold`: Float. When using the YOLO parser, we filter out all detected objects that are less than
+  this value in confidence. Default is 0.5.
+* `YoloNMSThreshold`: Float. Non-maximal-suppression threshold. If less than 1.0, we reject all detections whose bounding
+  boxes overlap with higher-confidence boxes if they overlap by at least this much (using a Jaccard distance).
+  If value is greater than or equal to 1.0, no NMS is applied. Default is 0.5.
 
 ## Code Flow
 

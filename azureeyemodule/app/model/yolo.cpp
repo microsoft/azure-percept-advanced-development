@@ -18,6 +18,7 @@
 #include "yolo.hpp"
 #include "../kernels/yolo_kernels.hpp"
 #include "../util/helper.hpp"
+#include "../util/json.hpp"
 #include "../util/labels.hpp"
 
 namespace model {
@@ -25,9 +26,15 @@ namespace model {
 /** A YOLO network takes a single input and outputs a single output (which we will parse into boxes, labels, and confidences) */
 G_API_NET(YOLONetwork, <cv::GMat(cv::GMat)>, "yolo-network");
 
-YoloModel::YoloModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution)
+static const double DEFAULT_CONFIDENCE_THRESHOLD = 0.5;
+static const double DEFAULT_NMS_THRESHOLD = 0.5;
+
+YoloModel::YoloModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd,
+                    const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, const std::string &json_configuration)
     : ObjectDetector{ labelfpath, modelfpaths, mvcmd, videofile, resolution }
 {
+    this->confidence_threshold = json::parse_string(json_configuration, "YoloConfidenceThreshold", DEFAULT_CONFIDENCE_THRESHOLD);
+    this->nms_threshold = json::parse_string(json_configuration, "YoloNMSThreshold", DEFAULT_NMS_THRESHOLD);
 }
 
 void YoloModel::run(cv::GStreamingCompiled* pipeline)
@@ -87,7 +94,7 @@ cv::GStreamingCompiled YoloModel::compile_cv_graph() const
     cv::GArray<int> ids;
     cv::GArray<float> cfs;
 
-    std::tie(rcs, ids, cfs) = cv::gapi::streaming::parseYoloWithConf(nn, sz);
+    std::tie(rcs, ids, cfs) = cv::gapi::streaming::parseYoloWithConf(nn, sz, this->confidence_threshold, this->nms_threshold);
 
     // Now specify the computation's boundaries
     auto graph = cv::GComputation(cv::GIn(in),
