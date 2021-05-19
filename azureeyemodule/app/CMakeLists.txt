@@ -9,7 +9,7 @@ endif()
 # CMake Project setup
 cmake_minimum_required(VERSION 3.1)
 project(InferenceApp)
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 20)
 
 # Set the application name.
 set(APP_NAME inference)
@@ -79,6 +79,11 @@ add_executable(${APP_NAME}
 
 # Add warnings (except the super annoying unused-parameter warning that makes callbacks difficult)
 target_compile_options(${APP_NAME} PRIVATE -Wall -Wextra -Werror -Wno-unused-parameter)
+
+# Add concepts for C++20
+if(CMAKE_CXX_STANDARD EQUAL 20)
+  target_compile_options(${APP_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fconcepts>)
+endif()
 
 # We need a few directories
 target_include_directories(${APP_NAME}

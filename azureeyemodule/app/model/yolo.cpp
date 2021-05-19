@@ -33,8 +33,8 @@ YoloModel::YoloModel(const std::string &labelfpath, const std::vector<std::strin
                     const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, const std::string &json_configuration)
     : ObjectDetector{ labelfpath, modelfpaths, mvcmd, videofile, resolution }
 {
-    this->confidence_threshold = json::parse_string(json_configuration, "YoloConfidenceThreshold", DEFAULT_CONFIDENCE_THRESHOLD);
-    this->nms_threshold = json::parse_string(json_configuration, "YoloNMSThreshold", DEFAULT_NMS_THRESHOLD);
+    this->confidence_threshold = json::parse_string<double>(json_configuration, "YoloConfidenceThreshold", DEFAULT_CONFIDENCE_THRESHOLD);
+    this->nms_threshold = json::parse_string<double>(json_configuration, "YoloNMSThreshold", DEFAULT_NMS_THRESHOLD);
 }
 
 void YoloModel::run(cv::GStreamingCompiled* pipeline)

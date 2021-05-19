@@ -41,8 +41,8 @@ static const int DEFAULT_FILTER_LABEl = -1;
 FasterRCNNModel::FasterRCNNModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, const std::string &json_configuration)
     : ObjectDetector{ labelfpath, modelfpaths, mvcmd, videofile, resolution }
 {
-    this->confidence_threshold = json::parse_string(json_configuration, "FasterRCNNConfidenceThreshold", DEFAULT_FILTER_LABEl);
-    this->filter_label = json::parse_string(json_configuration, "FasterRCNNFilterLabel", DEFAULT_FILTER_LABEl);
+    this->confidence_threshold = json::parse_string<double>(json_configuration, "FasterRCNNConfidenceThreshold", DEFAULT_CONFIDENCE_THRESHOLD);
+    this->filter_label = json::parse_string<int>(json_configuration, "FasterRCNNFilterLabel", DEFAULT_FILTER_LABEl);
 }
 
 void FasterRCNNModel::run(cv::GStreamingCompiled* pipeline)

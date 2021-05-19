@@ -3,6 +3,10 @@
 #pragma once
 
 // Standard library includes
+#if (__cplusplus > 201703L) && (__GNUC__ > 9)
+    // This header only exists in GCC > 9.x
+    #include <concepts>
+#endif
 #include <string>
 
 // Third party includes
@@ -13,16 +17,20 @@
 
 namespace json {
 
-#if __cplusplus > 201703L
-template<typename T> concept JsonType = requires(T x) {
-    {x} -> std::same_as<bool>
-           || std::same_as<double>
-           || std::same_as<JSON_Array *>
-           || std::same_as<JSON_Object *>
-           || std::same_as<std::string>
-           || std::same_as<int>
-           ;
-};
+#if (__cplusplus > 201703L) && (__GNUC__ > 9)
+// Only if C++ version > 17 and if GCC > 9.x
+template<typename T, typename ... U>
+concept IsAnyOf = (std::same_as<T, U> || ...);
+
+template<typename T>
+concept JsonType = IsAnyOf<std::remove_cvref_t<std::remove_pointer_t<std::decay_t<T>>>, bool, double, JSON_Array, JSON_Object, std::string, int, json_array_t, json_object_t>;
+#elif (__cplusplus > 201703L) && (__GNUC__ == 9)
+// Concepts are slightly different in GCC 9
+template<typename T, typename ... U>
+concept IsAnyOf = (std::is_same<T, U>::value || ...);
+
+template<typename T>
+concept JsonType = IsAnyOf<std::remove_cvref_t<std::remove_pointer_t<std::decay_t<T>>>, bool, double, JSON_Array, JSON_Object, std::string, int, json_array_t, json_object_t>;
 #endif
 
 /**
