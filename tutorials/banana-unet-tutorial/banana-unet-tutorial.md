@@ -24,15 +24,15 @@ Broadly, here is how the Azure Percept DK works:
 1. The application could do whatever you want, as it is open-sourced. In fact, it's [right here](../../azureeyemodule/README.md).
    But by default, it takes the inferences from the network and does two things: a) it packages them up into JSON messages
    to send out over Azure IoT, and b) it draws bounding boxes on the raw camera images and feeds those out via an RTSP server.
-1. The azureeyemodule is running as part of Azure IoT Edge Runtime, which as been provisioned on the device's custom Linux
+1. The azureeyemodule is running as part of Azure IoT Edge Runtime, which has been provisioned on the device's custom Linux
    build. You have already entered your credentials and whatnot via the Out Of Box Experience (OOBE). The messages that we
    send out of the azureeyemodule are fed up to the cloud via the Azure IoT Edge Runtime (which is just a collection
    of Docker containers, some configuration files, and some systemd daemons).
 
 Note that there are a few points during this process that can be customized. Specifically, you can customize the application
 that runs inside the azureeyemodule. This application is responsible for starting the Myriad X VPU, loading the latest firmware
-onto it, then loading the neural network onto it. The whole application is completely customizable, as it is open-sourced
-and in this repository, but generally, you will want to make minor modifications to it simply regarding:
+onto it, then loading the neural network onto it. The whole application is completely customizable, as it is open-sourced,
+but generally, you will want to make minor modifications to it simply regarding:
 
 * What neural network you want to run.
 * What the application does with the results from the neural network.
@@ -41,7 +41,7 @@ Now that you understand the context a bit better, we can move on with the rest o
 how to train up a neural network and then how to port it to the device, but it will use a network that we have already
 ported. Other tutorials show you how to write your own custom version of the azureeyemodule application from the ground-up.
 
-For now, just follow along though.
+For now, just follow along.
 
 ## Bananas!
 
@@ -55,6 +55,7 @@ A few things to note before we get started:
 * The point of this notebook is to train a PyTorch model from scratch that is suitable for deployment to the device.
   It also converts the model to the right format, and then deploys it to the device. This will not work for a custom model of your
   own making, because you will need to modify the azureeyemodule's inferencing application first.
+  Once again, see the other tutorials after you are done with this one for instructions on how to bring a completely custom model.
 * Once we are done with the notebook, we'll walk through the process you would have used to create this custom banana segmenter
   network on the device (even though we've already done it for you). This will show you all the tools you will likely be using
   to bring your own model and will introduce you to the whole workflow, while using something that should be pretty much guaranteed to already work.
@@ -120,7 +121,7 @@ But before we do that, let's take a look at exactly what we are about to do and 
 
 All Azure IoT Edge modules can be configured via their *module twin*.
 
-Go to the Azure Percept Studio, then clicking "Devices" -> select your device -> Open device in IoT Hub. This should show you
+Go to the Azure Percept Studio, then click "Devices" -> select your device -> Open device in IoT Hub. This should show you
 your device in IoT Hub. Azure Percept DK devices are simply Azure IoT devices with some extra goodies integrated.
 
 One thing to note in this view is all the modules that are running on the device. You don't need to know about most of these
@@ -136,7 +137,9 @@ modules for this tutorial, but in case you are wondering (and please excuse if t
 * **HostIpModule**: Retrieves your device's IP address so that it can tell the Percept Studio (which can then use it for the button
   that takes you to the local RTSP stream over HTTP).
 
-Now click on "set modules" at the top left of this screen.
+Now click on "set modules" at the top left of this screen:
+
+![Screenshot of "Set Modules"](./imgs/set_modules.png)
 
 This view will allow you to manage where your Azure Percept DK device can pull Docker images from. Remember that each
 module is just a Docker container. If you'd like, you can add your own custom modules - and this is a reasonable thing
@@ -147,6 +150,8 @@ network.
 Click on azureeyemodule, then "Module Twin Settings". These settings control various aspects of the azureeyemodule's behavior.
 See [here](../../azureeyemodule/README.md) for an explanation of all the values that you can enter here, but for the purposes
 of this tutorial, we are really only interested in "ModelZipUrl", which needs a string URL.
+
+![Screenshot of "Azure Eye Module"](./imgs/set_azureeyemodule.png)
 
 Whenever something changes in the modue twin values, the edgeAgent module will notice and alert the corresponding module,
 invoking a callback if there is one. If that callback parses the JSON in the module twin and expects the change you made,
@@ -212,18 +217,19 @@ First, if your device is off, you will need to turn it on now. This can take a f
 SSH over to your device and run `watch docker ps` to watch the Azure IoT Edge modules come up one by one. Once they are all up and running,
 you should be able to watch the logs in azureeyemodule for the model redeployment. A handy command for watching the docker logs
 is `docker logs -f azureeyemodule`. However, if your log file is particularly long, this can be rather terrible, as it has to spool
-out all the old logs before it can get to the current stuff. A better option is `watch -n 0.1 docker logs --tail 100 azureeyemodule`,
+out all the old logs before it can get to the current stuff. Another option is `watch -n 0.1 docker logs --tail 100 azureeyemodule`,
 which will just show you the latest 100 lines from that log file and update it every 10th of a second.
 
 While we are on the subject of logs. If we haven't gotten around to configuring the Docker logs correctly by the time you
 read this, you will likely want to [configure them manually](https://docs.docker.com/config/containers/logging/configure/)
-yourself to have way less space taken up by ancient logs. The azureeyemodule outputs logs at an astounding rate.
+yourself to have way less space taken up by ancient logs.
 
-The U-Net we just trained is pretty sizeable for this VPU, so it will take about a minute or two to get the network loaded onto the device.
+The U-Net we just trained is pretty sizeable for this VPU, so it will take about a minute or two download the model,
+unzip it, and then to get the network loaded onto the device.
 Once that's done, you will see the logs change to something like `<Time Stamp> [{"occupied": "0.0000"}]`, which means the network is running
 and outputting messages. If you were to check your IoT Hub message ingestion right now, you would see these messages coming through.
 
-If you happen to have some bananas on hand, you can launch VLC media player and click on Media->Open Network Stream->"rtsp://your-ip-address/result"
+If you happen to have some bananas on hand, you can launch VLC media player and click on Media->Open Network Stream->"rtsp://your-device-ip-address/result"
 (assuming that you have result RTSP stream turned on in your module twin settings). The world should be red, except for banans, which will look green
 (though there is a bit of latency on this network).
 
@@ -252,24 +258,26 @@ Of course, you are free to make your class as complicated as you want! We have s
 to work off of while implementing this method. But to make it easier on you, let's walk through BinaryUNet's implementation together.
 
 In [BinaryUNet's .cpp file](../../azureeyemodule/app/model/binaryunet.cpp), you can see that we have implemented this method like
-this:
+this (and please excuse if this is somewhat out of date compared to the actual file):
 
 ```C++
 void BinaryUnetModel::run(cv::GStreamingCompiled* pipeline)
 {
     while (true)
     {
+        // We must wait for the Myriad X VPU to come up.
         this->wait_for_device();
+
+        // Now let's log our model's parameters.
         this->log_parameters();
 
-        // Build the camera pipeline with G-API
+        // Build the camera pipeline with G-API and start it.
         *pipeline = this->compile_cv_graph();
         util::log_info("starting segmentation pipeline...");
         pipeline->start();
 
         // Pull data through the pipeline
         bool ran_out_naturally = this->pull_data(*pipeline);
-        util::log_info("pulled through pipeline");
         if (!ran_out_naturally)
         {
             break;
@@ -309,46 +317,51 @@ Take a look at BinaryUNet's `compile_cv_graph()` method:
 ```C++
 cv::GStreamingCompiled BinaryUnetModel::compile_cv_graph() const
 {
-    // Declare an empty GMat - the beginning of the pipeline
+    // The input node of the G-API pipeline. This will be filled in, one frame at time.
     cv::GMat in;
+
+    // We have a custom preprocessing node for the Myriad X-attached camera.
     cv::GMat preproc = cv::gapi::mx::preproc(in, this->resolution);
+
+    // This path is the H.264 path. It gets our frames one at a time from
+    // the camera and encodes them into H.264.
     cv::GArray<uint8_t> h264;
     cv::GOpaque<int64_t> h264_seqno;
     cv::GOpaque<int64_t> h264_ts;
     std::tie(h264, h264_seqno, h264_ts) = cv::gapi::streaming::encH264ts(preproc);
 
-    // We have BGR output and H264 output in the same graph.
-    // In this case, BGR always must be desynchronized from the main path
-    // to avoid internal queue overflow (FW reports this data to us via
-    // separate channels)
-    // copy() is required only to maintain the graph contracts
-    // (there must be an operation following desync()). No real copy happens
+    // We branch off from the preproc node into H.264 (above), raw BGR output (here),
+    // and neural network inferences (below).
     cv::GMat img = cv::gapi::copy(cv::gapi::streaming::desync(preproc));
+    auto img_ts = cv::gapi::streaming::timestamp(img);
 
-    // This branch has inference and is desynchronized to keep
-    // a constant framerate for the encoded stream (above)
+    // This node branches off from the preproc node for neural network inferencing.
     cv::GMat bgr = cv::gapi::streaming::desync(preproc);
+    auto nn_ts = cv::gapi::streaming::timestamp(bgr);
 
+    // Here's where we actually run our neural network. It runs on the VPU.
     cv::GMat segmentation = cv::gapi::infer<UNetNetwork>(bgr);
 
-    cv::GOpaque<cv::Size> sz = cv::gapi::streaming::size(bgr);
-
+    // Here's where we post-process our network's outputs into a segmentation mask.
     cv::GMat mask = cv::gapi::streaming::PostProcBinaryUnet::on(segmentation);
 
-    // Now specify the computation's boundaries
+    // Specify the boundaries of the G-API graph (the inputs and outputs).
     auto graph = cv::GComputation(cv::GIn(in),
-                                    cv::GOut(h264, h264_seqno, h264_ts,      // main path: H264 (~constant framerate)
-                                    img,                                     // desynchronized path: BGR
-                                    mask));
+                                  cv::GOut(h264, h264_seqno, h264_ts,      // H.264 path
+                                           img, img_ts,                    // Raw BGR frames path
+                                           mask, nn_ts));                  // Neural network inference path
 
+    // Pass the actual neural network blob file into the graph. We assume we have a modelfiles of length 1.
+    CV_Assert(this->modelfiles.size() == 1);
     auto networks = cv::gapi::networks(cv::gapi::mx::Params<UNetNetwork>{this->modelfiles.at(0)});
 
+    // Here we wrap up all the kernels (the implementations of the G-API ops) that we need for our graph.
     auto kernels = cv::gapi::combine(cv::gapi::mx::kernels(), cv::gapi::kernels<cv::gapi::streaming::GOCVPostProcBinaryUnet>());
 
-    // Compile the graph in streamnig mode, set all the parameters
+    // Compile the graph in streamnig mode; set all the parameters; feed the firmware file into the VPU.
     auto pipeline = graph.compileStreaming(cv::gapi::mx::Camera::params(), cv::compile_args(networks, kernels, cv::gapi::mx::mvcmdFile{ this->mvcmd }));
 
-    // Specify the AzureEye's Camera as the input to the pipeline, and start processing
+    // Specify the Percept DK's camera as the input to the pipeline.
     pipeline.setSource(cv::gapi::wip::make_src<cv::gapi::mx::Camera>());
 
     util::log_info("Succesfully compiled segmentation pipeline");
@@ -383,32 +396,42 @@ The next method we call in the `run()` method is `pull_data()`. Here is the sour
 ```C++
 bool BinaryUnetModel::pull_data(cv::GStreamingCompiled &pipeline)
 {
+    // The raw BGR frames from the camera will fill this node.
     cv::optional<cv::Mat> out_bgr;
+    cv::optional<int64_t> out_bgr_ts;
 
+    // The H.264 information will fill these nodes.
     cv::optional<std::vector<uint8_t>> out_h264;
     cv::optional<int64_t> out_h264_seqno;
     cv::optional<int64_t> out_h264_ts;
 
+    // Our neural network's frames will fill out_mask, and timestamp will fill nn_ts.
     cv::optional<cv::Mat> out_mask;
+    cv::optional<int64_t> out_nn_ts;
 
+    // Because each node is asynchronusly filled, we cache them whenever we get them.
     cv::Mat last_bgr;
     cv::Mat last_mask;
 
+    // If the user wants to record a video, we open the video file.
     std::ofstream ofs;
     if (!this->videofile.empty())
     {
         ofs.open(this->videofile, std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
     }
 
-    util::log_info("pull_data: prep to pull");
-    // Pull the data from the pipeline while it is running
-    while (pipeline.pull(cv::gout(out_h264, out_h264_seqno, out_h264_ts, out_bgr, out_mask)))
+    util::log_info("Pull_data: prep to pull");
+
+    // Pull the data from the pipeline while it is running.
+    // Every time we call pull(), G-API gives us whatever nodes it has ready.
+    // So we have to make sure a node has useful contents before using it.
+    while (pipeline.pull(cv::gout(out_h264, out_h264_seqno, out_h264_ts, out_bgr, out_bgr_ts, out_mask, out_nn_ts)))
     {
         this->handle_h264_output(out_h264, out_h264_ts, out_h264_seqno, ofs);
-        this->handle_inference_output(out_mask, last_mask, 0.5);
-        this->handle_bgr_output(out_bgr, last_bgr, last_mask);
+        this->handle_inference_output(out_mask, out_nn_ts, last_mask);
+        this->handle_bgr_output(out_bgr, out_bgr_ts, last_bgr, last_mask);
 
-        if (restarting)
+        if (this->restarting)
         {
             // We've been interrupted
             this->cleanup(pipeline, last_bgr);
@@ -444,7 +467,7 @@ has a different purpose; some draw bounding boxes on the RGB frames, some draw h
 There is one gotcha though: you can never expect two asynchronous node outputs (two `optionals`) to come at the same time
 unless they are part of the same branch in the graph. For example, the out_h264 items are all guaranteed to arrive at the
 same time (if you look at the G-API graph declaration up above, you should see why), but the none of the other nodes in this
-graph are guaranteed to arrive at the same time, and in principle they never will. Therefore a common pattern is to cache
+graph are guaranteed to arrive at the same time as these ones, and in principle they never will. Therefore a common pattern is to cache
 the latest output from each node in a `latest_` variable, and reuse that result until you have a more recent one.
 
 ## Next Steps

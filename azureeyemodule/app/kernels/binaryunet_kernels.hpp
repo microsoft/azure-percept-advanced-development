@@ -21,8 +21,6 @@ G_API_OP(PostProcBinaryUnet, <cv::GMat(cv::GMat)>, "custom.unet_postproc_1channe
   {
     // This function is required for G-API engine to figure out
     // what the output format is, given the input parameters.
-    // The output is a 1-channel/col probability matrix
-    // Size(408, 308)
     return cv::GMatDesc(CV_32F, 1, {408, 308});
   }
 };
