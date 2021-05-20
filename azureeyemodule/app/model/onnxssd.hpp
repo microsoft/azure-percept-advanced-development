@@ -1,5 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
+//
+// TODO: Merge this class with SSD.
 #pragma once
 
 // Standard library includes
