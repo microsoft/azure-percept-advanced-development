@@ -9,6 +9,9 @@ FROM mcr.microsoft.com/azureedgedevices/azureeyebase:latest-amd64
 
 ARG ARCH=x86_64
 
+# CMAKE Build values: Debug or Release
+ARG BUILD_TYPE=Debug
+
 # Install dependencies
 RUN tdnf install -y build-essential cmake rpm && \
     # dependency updating Custom Vision IR model
@@ -69,6 +72,7 @@ RUN cd /app && \
     cmake -DOpenCV_DIR=/eyesom/build/install/lib64/cmake/opencv4 \
           -DmxIf_DIR=/eyesom/mxif/install/share/mxIf \
           -DCMAKE_PREFIX_PATH=/onnxruntime/install/lib64 \
+          -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
           .. && \
     make -j $(nproc) && \
     mv /app/build/inference /app/inference && \

@@ -11,6 +11,7 @@ Significant portions of these experiences are subject to change without warning.
 1. [Code Flow](#code-flow)
 1. [Building](#building)
 1. [Running](#running)
+1. [Debugging a Running Container](#debugging-a-running-container)
 1. [Extending and Customizing](#extending-and-customizing)
 1. [The Dockerfile](#the-dockerfile)
 
@@ -309,7 +310,9 @@ Either way, once you have buildx installed, run the following to cross compile:
 `docker buildx build --platform linux/arm64 --tag azureeyemodule-xc -f Dockerfile.arm64v8 --load .`, which will build the azureeyemodule Docker image,
 and with it, the Percept application.
 
-Once you have your new azureeyemodule, stick it into any container registry and pull it using the IoT Hub.
+Append `--build-arg BUILD_TYPE=Release` for a release build instead of the default Debug build.
+
+Once you have your new azureeyemodule, stick it into any container registry and pull it using the module twin.
 Alternatively, you can [tar up your image and scp it over](https://stackoverflow.com/questions/23935141/how-to-copy-docker-images-from-one-host-to-another-without-using-a-repository).
 
 #### Linux
@@ -320,7 +323,9 @@ then pull it during the second step.
 `docker buildx build --platform linux/arm64 --tag azureeyemodule-xc -f Dockerfile.arm64v8 .`, which will pull the base image and build the
 azureeyemodule Docker image on top of it.
 
-Once you have your new azureeyemodule, stick it into any container registry and pull it using the IoT Hub.
+Append `--build-arg BUILD_TYPE=Release` for a release build instead of the default Debug build.
+
+Once you have your new azureeyemodule, stick it into any container registry and pull it using the module twin.
 Alternatively, you can [tar up your image and scp it over](https://stackoverflow.com/questions/23935141/how-to-copy-docker-images-from-one-host-to-another-without-using-a-repository).
 
 ## Running
@@ -405,6 +410,34 @@ If you do have it running, you can simply wait a few minutes and then it should 
 
 If things go awry, you can check the Docker logs from the iotedgeagent via `docker logs -f edgeAgent`, which will follow along with the edgeAgent's
 logs as it tries to update the deployment.
+
+## Debugging a Running Container
+
+If you are running your container and it does not seem to be working the way you were expecting, an option is to SSH over to the
+device, then step into the running container with `docker exec -it azureeyemodule /bin/bash`.
+This will put you into the running container, but the `inference` process will still be running. The container does not
+have ps or top. You might be able to install them with tdnf, but you could also just use the /proc filesystem.
+
+See [here](https://man7.org/linux/man-pages/man5/proc.5.html) for the man pages associated with /proc, but here are a few useful tips
+for working with it:
+
+* `ls /proc/ | grep -E '[0-9]'` To list all processes by PID running inside the container. Note that two of the reported numbers will
+  be red herrings, as they are actually the PID for ls and for grep, and will be different the next time you run the command.
+  PID 1 should be the inference binary running.
+* `cat /proc/<PID>/cmdline` Will show you the command that was used to execute the process PID. If you try `cat /proc/1/cmdline`, it
+  should show you `./app/inference`.
+* `cat /proc/<PID>/comm` Will tell you the "name" of the process, and if you are in a hurry, you could do `cat /proc/[0-9]*/comm` to get
+  all the names of all the processes running in the container.
+* `cat /proc/<PID>/status` Will show you all kinds of information about process PID.
+* `kill -SIGINT 1`, will kill the azureeyemodule's "inference" application. But because this is a Docker container,
+  this application is PID 1, and this will cause it to exit the container completely.
+
+You can download GDB into a running container with `tdnf install -y gdb` and then attach gdb to the running inference binary
+with `gdb attach 1`, though frankly, I'm not sure how useful that is.
+
+Unfortunately, the best approach will likely be to simply rebuild your container
+with `CMD ["/bin/bash", "-c", "while true; do true; sleep 5; done"]` as the entrypoint instead of /app/inference,
+and then step into it and debug by adding print statments and recompiling and running natively.
 
 ## Extending and Customizing
 
@@ -511,6 +544,7 @@ cv::GStreamingCompiled ClassificationModel::compile_cv_graph() const
    // This branch has inference and is desynchronized to keep
    // a constant framerate for the encoded stream.
    cv::GMat bgr = cv::gapi::streaming::desync(preproc);
+   cv::GOpaque<int64_t> nn_ts = cv::gapi::streaming::timestamp(bgr);
 
    // Here is the actual inference node - we tell G-API that we intend to use
    // a ClassificationNetwork (which is a custom type we have defined using a G-API macro)
@@ -520,7 +554,6 @@ cv::GStreamingCompiled ClassificationModel::compile_cv_graph() const
    // We branch the graph here by having one branch feed out the sequence number
    // and one branch feed out the timestamp
    cv::GOpaque<int64_t> nn_seqno = cv::gapi::streaming::seqNo(nn);
-   cv::GOpaque<int64_t> nn_ts = cv::gapi::streaming::timestamp(nn);
 
    // Get the size of the BGR.
    cv::GOpaque<cv::Size> sz = cv::gapi::streaming::size(bgr);
@@ -759,13 +792,6 @@ bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
         this->handle_h264_output(out_h264, out_h264_ts, out_h264_seqno, ofs);
         this->handle_inference_output(out_nn, out_nn_ts, out_nn_seqno, out_boxes, out_labels, out_confidences, last_boxes, last_labels, last_confidences);
         this->handle_bgr_output(out_bgr, last_bgr, last_boxes, last_labels, last_confidences);
-
-        // Preview
-        if (this->show_output && !last_bgr.empty())
-        {
-            cv::imshow("preview", last_bgr);
-            cv::waitKey(1);
-        }
 
         if (this->restarting)
         {
