@@ -82,4 +82,5 @@ RUN cd /app && \
     rm -rf /app/*.h* && \
     rm -rf /app/*.txt
 
-CMD ["/bin/bash", "-c", "./app/inference"]
+#CMD ["/bin/bash", "-c", "./app/inference"]
+CMD ["/bin/bash", "-c", "while true; do true; sleep 5; done"]

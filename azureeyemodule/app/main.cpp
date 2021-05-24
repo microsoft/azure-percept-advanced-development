@@ -112,6 +112,12 @@ static void update_resolution(const std::string &resolution)
     the_model->set_update_flag();
 }
 
+/** This function gets called when we update the model's configuration. */
+static bool compare_model_configs(const std::string &model_config_json)
+{
+    return model_config_json == update_model_configuration_json;
+}
+
 /** On a signal, we clean up after ourselves and exit cleanly. */
 static void interrupt(int sig)
 {
@@ -245,6 +251,9 @@ int main(int argc, char** argv)
 
     // Set up the resolution change callback
     iot::update::set_update_resolution_callback(&update_resolution);
+
+    // Set up the callback for determining if the model's configuration has changed
+    iot::update::set_check_model_config_callback(&compare_model_configs);
 
     // Parse out the arguments
     cv::CommandLineParser cmd(argc, argv, keys);
