@@ -5,6 +5,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <sstream>
 
 // Third party includes
 #include <opencv2/gapi/mx.hpp>
@@ -154,6 +155,7 @@ void ObjectDetector::handle_inference_output(const cv::optional<cv::Mat> &out_bg
 
 bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
 {
+    util::log_info("**** enter pull_data");
     cv::optional<cv::Mat> out_bgr;
 
     cv::optional<std::vector<uint8_t>> out_h264;
@@ -163,8 +165,8 @@ bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
     cv::optional<cv::Mat> out_nn;
     cv::optional<int64_t> out_nn_ts;
     cv::optional<int64_t> out_nn_seqno;
-    cv::optional<std::vector<cv::Rect>> out_boxes;
-    cv::optional<std::vector<int>> out_labels;
+    std::vector<cv::Rect> out_boxes;
+    std::vector<int> out_labels;
     cv::optional<std::vector<float>> out_confidences;
     cv::optional<cv::Size> out_size;
 
@@ -180,10 +182,15 @@ bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
     }
 
     // Pull the data from the pipeline while it is running
-    while (pipeline.pull(cv::gout(out_h264, out_h264_seqno, out_h264_ts, out_bgr, out_nn_seqno, out_nn_ts, out_boxes, out_labels, out_confidences, out_size)))
+    while (pipeline.pull(cv::gout(out_boxes, out_labels)))
+    //while (pipeline.pull(cv::gout(out_h264, out_h264_seqno, out_h264_ts, out_bgr, out_nn_seqno, out_nn_ts, out_boxes, out_labels, out_confidences, out_size)))
     {
-        this->handle_h264_output(out_h264, out_h264_ts, out_h264_seqno, ofs);
-        this->handle_inference_output(out_bgr, out_nn_ts, out_nn_seqno, out_boxes, out_labels, out_confidences, out_size, last_boxes, last_labels, last_confidences);
+        util::log_info("***** enter pipeline.pull while loop");
+        //this->handle_h264_output(out_h264, out_h264_ts, out_h264_seqno, ofs);
+        //this->handle_inference_output(out_bgr, out_nn_ts, out_nn_seqno, out_boxes, out_labels, out_confidences, out_size, last_boxes, last_labels, last_confidences);
+        for (std::size_t i = 0; i < out_boxes.size(); i++) {
+            util::log_info("detected , label " + std::to_string(out_labels[i]));
+        }
         this->handle_bgr_output(out_bgr, last_bgr, last_boxes, last_labels, last_confidences);
 
         // Preview

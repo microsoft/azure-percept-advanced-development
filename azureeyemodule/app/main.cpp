@@ -39,6 +39,7 @@
 const std::string keys =
 "{ h help   |        | print this message }"
 "{ f mvcmd  |        | mvcmd firmware }"
+"{ i input  |        | Path to input video file (optional) }"
 "{ h264_out |        | Output file name for the raw H264 stream. No files written by default }"
 "{ l label  |        | label file }"
 "{ m model  |        | model zip file }"
@@ -121,7 +122,8 @@ static void interrupt(int sig)
 }
 
 static void determine_model_type(const std::string &labelfile, const std::vector<std::string> &modelfiles, const std::string &mvcmd,
-                                 const std::string &videofile, const model::parser::Parser &parser_type, const cv::gapi::mx::Camera::Mode &resolution, bool show, bool quit_on_failure)
+                                 const std::string inputsource, const std::string &videofile, const model::parser::Parser &parser_type,
+                                 const cv::gapi::mx::Camera::Mode &resolution, bool show, bool quit_on_failure)
 {
     the_model = nullptr;
     switch (parser_type)
@@ -141,7 +143,7 @@ static void determine_model_type(const std::string &labelfile, const std::vector
         case model::parser::Parser::SSD100: // fall-through
         case model::parser::Parser::SSD200: // fall-through
         case model::parser::Parser::DEFAULT:
-            the_model = new model::SSDModel(labelfile, modelfiles, mvcmd, videofile, resolution, show);
+            the_model = new model::SSDModel(labelfile, modelfiles, mvcmd, inputsource, videofile, resolution, show);
             break;
         case model::parser::Parser::YOLO:
             the_model = new model::YoloModel(labelfile, modelfiles, mvcmd, videofile, resolution, show);
@@ -174,7 +176,7 @@ static void determine_model_type(const std::string &labelfile, const std::vector
 }
 
 /** This function should update the_model to be whatever we've been told to update to via the update callback. */
-static void load_new_model(const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show, bool quit_on_failure)
+static void load_new_model(const std::string &mvcmd, const std::string inputsource, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution, bool show, bool quit_on_failure)
 {
     std::string labelfile = "";
     std::vector<std::string> modelfiles;
@@ -211,7 +213,7 @@ static void load_new_model(const std::string &mvcmd, const std::string &videofil
     }
 
     // Fill in the model values based on the type
-    determine_model_type(labelfile, modelfiles, mvcmd, videofile, modeltype, resolution, show, quit_on_failure);
+    determine_model_type(labelfile, modelfiles, mvcmd, inputsource, videofile, modeltype, resolution, show, quit_on_failure);
 }
 
 /** This function stops the MyriadX pipeline and wait for 2 seconds as Intel suggested */
@@ -260,6 +262,7 @@ int main(int argc, char** argv)
     auto show = cmd.get<bool>("show");
     auto quit_on_failure = cmd.get<bool>("quit");
     auto fps = cmd.get<int>("fps");
+    auto inputsource = cmd.get<std::string>("input");
 
     // Sanity check resolution is allowed
     if (modes.count(str_resolution) == 0)
@@ -299,7 +302,7 @@ int main(int argc, char** argv)
     }
 
     // Fill in `the_model` with the appropriate type of model
-    determine_model_type(labelfile, modelfiles, mvcmd, videofile, parser_type, resolution, show, quit_on_failure);
+    determine_model_type(labelfile, modelfiles, mvcmd, inputsource, videofile, parser_type, resolution, show, quit_on_failure);
 
     // See if the device is already opened, if not, open it and authenticate
     bool opened_usb_device = device::open_device();
@@ -353,7 +356,7 @@ int main(int argc, char** argv)
         the_model = nullptr;
 
         // Load a new model
-        load_new_model(mvcmd, videofile, resolution, show, quit_on_failure);
+        load_new_model(mvcmd, inputsource, videofile, resolution, show, quit_on_failure);
 
         // Update data collection settings
         update_data_collection_params(data_collection_enabled, data_collection_interval_sec);
