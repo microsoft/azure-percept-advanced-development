@@ -37,20 +37,21 @@
 #include "util/helper.hpp"
 
 const std::string keys =
-"{ h help   |        | print this message }"
-"{ f mvcmd  |        | mvcmd firmware }"
-"{ h264_out |        | Output file name for the raw H264 stream. No files written by default }"
-"{ l label  |        | label file }"
-"{ m model  |        | model zip file }"
-"{ q quit   | false  | If given, we quit on error, rather than loading a default model. Useful for testing }"
-"{ p parser | ssd100 | Parser kind required for input model. Possible values: ssd100, ssd200, yolo, classification, s1, openpose, onnxssd, faster-rcnn-resnet50, unet, ocr }"
-"{ s size   | native | Output video resolution. Possible values: native, 1080p, 720p }"
-"{ fps      | 10     | Output video frame rate. }";
+"{ h help      |        | print this message }"
+"{ f mvcmd     |        | mvcmd firmware }"
+"{ h264_out    |        | Output file name for the raw H264 stream. No files written by default }"
+"{ l label     |        | label file }"
+"{ m model     |        | model zip file }"
+"{ q quit      | false  | If given, we quit on error, rather than loading a default model. Useful for testing }"
+"{ p parser    | ssd100 | Parser kind required for input model. Possible values: ssd100, ssd200, yolo, classification, s1, openpose, onnxssd, faster-rcnn-resnet50, unet, ocr }"
+"{ s size      | native | Output video resolution. Possible values: native, 1080p, 720p }"
+"{ t timealign | false  | Align the RTSP result frames with their corresponding neural network outputs in time }"
+"{ fps         | 10     | Output video frame rate. }";
 
-const std::map<std::string, cv::gapi::mx::Camera::Mode> modes = {
-    {"native", cv::gapi::mx::Camera::MODE_NATIVE},
-    {"1080p", cv::gapi::mx::Camera::MODE_1080P},
-    {"720p", cv::gapi::mx::Camera::MODE_720P} };
+const std::map<rtsp::Resolution, cv::gapi::mx::Camera::Mode> modes = {
+    {rtsp::Resolution::NATIVE, cv::gapi::mx::Camera::MODE_NATIVE},
+    {rtsp::Resolution::HD1080P, cv::gapi::mx::Camera::MODE_1080P},
+    {rtsp::Resolution::HD720P, cv::gapi::mx::Camera::MODE_720P} };
 
 /** Pointer to the single model we have at a time. */
 static model::AzureEyeModel *the_model = nullptr;
@@ -95,7 +96,7 @@ static void update_data_collection_params(bool enable, unsigned long int interva
 }
 
 /** This function gets called when we update the resolution. */
-static void update_resolution(const std::string &resolution)
+static void update_resolution(const rtsp::Resolution &resolution)
 {
     if (the_model == nullptr)
     {
@@ -103,9 +104,22 @@ static void update_resolution(const std::string &resolution)
         return;
     }
 
-    util::log_info("Update resolution callback called with \"" + resolution + "\"");
+    util::log_info("Update resolution callback called with \"" + rtsp::resolution_to_string(resolution) + "\"");
     the_model->set_resolution(modes.at(resolution));
     the_model->set_update_flag();
+}
+
+/** This function gets called when we update the time alignment feature in the module twin. */
+static void update_time_alignment(bool align)
+{
+    if (the_model == nullptr)
+    {
+        util::log_error("Trying to update the model's time alignment feature before we have a model.");
+        return;
+    }
+
+    util::log_info("Update the time alignment to: " + (align ? std::string("yes") : std::string("no")));
+    the_model->update_time_alignment(align);
 }
 
 /** On a signal, we clean up after ourselves and exit cleanly. */
@@ -241,6 +255,9 @@ int main(int argc, char** argv)
     // Set up the resolution change callback
     iot::update::set_update_resolution_callback(&update_resolution);
 
+    // Set up the time alignment change callback
+    iot::update::set_update_time_alignment_callback(&update_time_alignment);
+
     // Parse out the arguments
     cv::CommandLineParser cmd(argc, argv, keys);
 
@@ -257,15 +274,16 @@ int main(int argc, char** argv)
     auto parser_type = model::parser::from_string(cmd.get<std::string>("parser"));
     auto str_resolution = cmd.get<std::string>("size");
     auto quit_on_failure = cmd.get<bool>("quit");
+    auto timealign = cmd.get<bool>("timealign");
     auto fps = cmd.get<int>("fps");
 
     // Sanity check resolution is allowed
-    if (modes.count(str_resolution) == 0)
+    if (!rtsp::is_valid_resolution(str_resolution))
     {
         util::log_error("Given a resolution that is not allowed: " + str_resolution);
         exit(__LINE__);
     }
-    auto resolution = modes.at(str_resolution);
+    auto resolution_camera_mode = modes.at(rtsp::resolution_string_to_enum(str_resolution));
 
     // Sanity check the labelfile exists (if given)
     if ((labelfile != "") && !util::file_exists(labelfile))
@@ -297,7 +315,7 @@ int main(int argc, char** argv)
     }
 
     // Fill in `the_model` with the appropriate type of model
-    determine_model_type(labelfile, modelfiles, mvcmd, videofile, parser_type, resolution, quit_on_failure);
+    determine_model_type(labelfile, modelfiles, mvcmd, videofile, parser_type, resolution_camera_mode, quit_on_failure);
 
     // See if the device is already opened, if not, open it and authenticate
     bool opened_usb_device = device::open_device();
@@ -307,9 +325,10 @@ int main(int argc, char** argv)
     }
 
     // Create RTSP thread
-    rtsp::set_stream_params(rtsp::StreamType::RAW, str_resolution, fps, true);
-    rtsp::set_stream_params(rtsp::StreamType::RESULT, str_resolution, fps, true);
-    rtsp::set_stream_params(rtsp::StreamType::H264_RAW, str_resolution, fps, true);
+    auto stream_resolution = rtsp::resolution_string_to_enum(str_resolution);
+    rtsp::set_stream_params(rtsp::StreamType::RAW, stream_resolution, fps, true);
+    rtsp::set_stream_params(rtsp::StreamType::RESULT, stream_resolution, fps, true);
+    rtsp::set_stream_params(rtsp::StreamType::H264_RAW, stream_resolution, fps, true);
     pthread_t thread_rtsp;
     if (pthread_create(&thread_rtsp, NULL, rtsp::gst_rtsp_server_thread, NULL))
     {
@@ -317,6 +336,9 @@ int main(int argc, char** argv)
         return __LINE__;
     }
     util::log_info("RTSP thread created.");
+
+    // Set whether we want to time-align the inferences (this can be overridden by Module Twin)
+    the_model->update_time_alignment(timealign);
 
     // Create data uploading thread
     pthread_t thread_data_collection;
@@ -344,17 +366,23 @@ int main(int argc, char** argv)
         the_model->get_data_collection_params(data_collection_enabled, data_collection_interval_sec);
 
         // The resolution may have changed
-        resolution = the_model->get_resolution();
+        resolution_camera_mode = the_model->get_resolution();
+
+        // The time alignment settings may have changed
+        timealign = the_model->get_time_alignment_setting();
 
         // Clean up after ourselves
         delete the_model;
         the_model = nullptr;
 
         // Load a new model
-        load_new_model(mvcmd, videofile, resolution, quit_on_failure);
+        load_new_model(mvcmd, videofile, resolution_camera_mode, quit_on_failure);
 
         // Update data collection settings
         update_data_collection_params(data_collection_enabled, data_collection_interval_sec);
+
+        // Update the time alignment settings
+        the_model->update_time_alignment(timealign);
 
         // Stop the MyriadX pipeline. Note only after the Model conversion can the pipeline be stopped. Could be a bug from Intel or by design.
         stop_pipeline(&pipeline);

@@ -62,6 +62,9 @@ int run_command(std::string command);
 /** Search for the given word in the given file. */
 bool search_keyword_in_file(std::string keyword, std::string filename);
 
+/** Return a timestamp as an easy to read string. */
+std::string timestamp_to_string(int64_t ts);
+
 /** Print the version. */
 void version();
 

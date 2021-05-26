@@ -22,7 +22,9 @@
 namespace model {
 
 AzureEyeModel::AzureEyeModel(const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution)
-    : modelfiles(modelfpaths), mvcmd(mvcmd), videofile(videofile), resolution(resolution), inference_logger({})
+    : modelfiles(modelfpaths), mvcmd(mvcmd), videofile(videofile), resolution(resolution),
+      timestamped_frames({cv::Mat(rtsp::DEFAULT_HEIGHT, rtsp::DEFAULT_WIDTH, CV_8UC3, cv::Scalar(0, 0, 0))}),
+      inference_logger({})
 {
     // Nothing to do
 }
@@ -34,6 +36,11 @@ AzureEyeModel::~AzureEyeModel()
 void AzureEyeModel::set_update_flag()
 {
     this->restarting = true;
+}
+
+void AzureEyeModel::update_time_alignment(bool enable)
+{
+    this->align_frames_in_time = enable;
 }
 
 void AzureEyeModel::update_data_collection_params(bool enable, unsigned long int interval)
@@ -53,6 +60,11 @@ void AzureEyeModel::get_data_collection_params(bool &enable, unsigned long int &
 {
     enable = this->data_collection_enabled;
     interval = this->data_collection_interval_sec;
+}
+
+bool AzureEyeModel::get_time_alignment_setting() const
+{
+    return this->align_frames_in_time;
 }
 
 void AzureEyeModel::wait_for_device()
@@ -91,6 +103,45 @@ void AzureEyeModel::save_retraining_data(const cv::Mat &bgr, const std::vector<f
 void AzureEyeModel::save_retraining_data(const cv::Mat &bgr)
 {
     this->save_retraining_data(bgr, {1.0f});
+}
+
+void AzureEyeModel::stream_frames(const cv::Mat &raw_frame, const cv::Mat &result_frame, int64_t frame_ts)
+{
+    cv::Mat new_raw_frame;
+    cv::Mat new_result_frame;
+    if (this->status_msg.empty())
+    {
+        // No copy
+        new_raw_frame = raw_frame;
+        new_result_frame = result_frame;
+    }
+    else
+    {
+        // Copy the frames so we can mark them up with a status message
+        raw_frame.copyTo(new_raw_frame);
+        result_frame.copyTo(new_result_frame);
+
+        util::put_text(new_raw_frame, this->status_msg);
+        util::put_text(new_result_frame, this->status_msg);
+    }
+
+    if (this->align_frames_in_time)
+    {
+        // Don't add a status message to the frames that we are keeping back for time alignment,
+        // as it could be confusing to someone watching the stream, since the stream will
+        // be delayed by some amount of time.
+        cv::Mat frame_to_mark_up_later;
+        raw_frame.copyTo(frame_to_mark_up_later);
+        this->timestamped_frames.put(std::make_tuple(frame_to_mark_up_later, frame_ts));
+
+        // Add status message to the raw frame that we send out right now though.
+        rtsp::update_data_raw(new_raw_frame);
+    }
+    else
+    {
+        rtsp::update_data_raw(new_raw_frame);
+        rtsp::update_data_result(new_result_frame);
+    }
 }
 
 bool AzureEyeModel::load(std::string &labelfile, std::vector<std::string> &modelfiles, parser::Parser &modeltype)
@@ -414,6 +465,37 @@ void AzureEyeModel::handle_h264_output(cv::optional<std::vector<uint8_t>> &out_h
     frame.timestamp = *out_h264_ts;
 
     rtsp::update_data_h264(frame);
+}
+
+void AzureEyeModel::handle_new_inference_for_time_alignment(int64_t inference_ts, std::function<void(cv::Mat&)> f_to_apply_to_each_frame)
+{
+    if (!this->align_frames_in_time)
+    {
+        return;
+    }
+
+    #ifdef DEBUG_TIME_ALIGNMENT
+        util::log_debug("New Inference: Drawing on frames from " + util::timestamp_to_string(inference_ts) + " and older.");
+    #endif
+
+    // Find all the frames that are either time-aligned or older than the time-aligned frame
+    // (and remove them from the buffer)
+    auto frames_to_draw_on = this->timestamped_frames.get_best_match_and_older(inference_ts);
+
+    // Draw our bounding boxes (or masks, or whatever) over each one and release them in a batch to the RTSP server
+    for (auto &frame : frames_to_draw_on)
+    {
+        f_to_apply_to_each_frame(frame);
+        if (!this->status_msg.empty())
+        {
+            util::put_text(frame, this->status_msg);
+        }
+    }
+
+    #ifdef DEBUG_TIME_ALIGNMENT
+        util::log_debug("New Inference: Sending " + std::to_string(frames_to_draw_on.size()) + " to RTSP stream");
+    #endif
+    rtsp::update_data_result(frames_to_draw_on);
 }
 
 cv::gapi::mx::Camera::Mode AzureEyeModel::get_resolution() const

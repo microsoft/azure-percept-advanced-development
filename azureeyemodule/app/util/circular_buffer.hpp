@@ -15,6 +15,7 @@
 
 // Local includes
 #include "timing.hpp"
+#include "helper.hpp"
 
 namespace circbuf {
 
@@ -26,8 +27,15 @@ public:
 
     /** Constructs a circular buffer of the given maximum size. */
     explicit CircularBuffer(size_t size)
-        : buffer(size), max_size(size)
+        : buffer(size), read_index(0), write_index(0), max_size(size), full(false)
     {
+    }
+
+    /** Constructs a circular buffer with a default starting element. */
+    explicit CircularBuffer(size_t size, T item)
+        : buffer(size), read_index(0), write_index(0), max_size(size), full(false)
+    {
+        this->put(item);
     }
 
     /** Returns the capacity of the buffer. */
@@ -43,17 +51,32 @@ public:
     bool is_full() const;
 
     /** Retrieves the next item (moving it out, not copying it). Blocks until we have something to give you. */
-    T get(void);
+    T get();
 
     /**
      * Attempts to retrieve the next item (moving it out, not copying it) into the given reference. Blocks for up to
      * the given timeout (ms) and returns true if we read something, false otherwise (in which case, the object
      * will not be filled in).
+     *
+     * This method takes an internal mutex until the timeout_ms expires or until we have something.
      */
     bool get_with_timeout(T &item, unsigned long int timeout_ms);
 
-    /** Returns the current number of items in the buffer. */
+    /**
+     * Attempts to retrieve the next item (moving it out, not copying it) into the given reference. Does not block.
+     * Returns true if successful, false otherwise.
+     *
+     * This method only takes the internal mutex if we have something to give, and only for as long as it takes to retrieve
+     * the item. It never waits on the mutex - if the mutex is already taken, we return false, regardless of whether
+     * there is something to give or not. Therefore, this is safe to call from an interrupt context.
+     */
+    bool get_no_wait(T &item);
+
+    /** Returns the current number of items in the buffer. Requires taking the mutex. */
     size_t size();
+
+    /** Returns the best estimate of the current number of items in the buffer. Could be wrong though because it does not take the mutex. */
+    size_t size_no_wait() const;
 
     /** Puts the given item into the buffer. This will use a copy constructor, so try to use std::move if you can. */
     void put(T item);
@@ -70,16 +93,16 @@ private:
     std::vector<T> buffer;
 
     /** This is where we read from. */
-    size_t read_index = 0;
+    size_t read_index;
 
     /** This is where we write to. */
-    size_t write_index = 0;
+    size_t write_index;
 
     /** This is the largest that our circular buffer is allowed to grow to. */
     const size_t max_size;
 
     /** Are we full? */
-    bool full = false;
+    bool full;
 
     /**
      * Returns a best estimate as to whether we are empty. Note that it may be wrong because
@@ -179,6 +202,36 @@ bool CircularBuffer<T>::get_with_timeout(T &item, unsigned long int timeout_ms)
 }
 
 template<class T>
+bool CircularBuffer<T>::get_no_wait(T &item)
+{
+    if (this->mutex.try_lock())
+    {
+        // We now have the mutex. Take an item if we have one, otherwise return false.
+        if (this->is_empty_not_threadsafe())
+        {
+            this->mutex.unlock();
+            return false;
+        }
+        else
+        {
+            // Read out the next item
+            item = std::move(this->buffer.at(this->read_index));
+            this->full = false;
+            this->read_index = (this->read_index + 1) % this->max_size;
+
+            // Unlock and return true to show that we got an item.
+            this->mutex.unlock();
+            return true;
+        }
+    }
+    else
+    {
+        // We failed to get the mutex. Return false.
+        return false;
+    }
+}
+
+template<class T>
 void CircularBuffer<T>::put(T item)
 {
     this->mutex.lock();
@@ -204,22 +257,31 @@ template<class T>
 size_t CircularBuffer<T>::size()
 {
     this->mutex.lock();
+    auto size = this->size_no_wait();
+    this->mutex.unlock();
 
+    return size;
+}
+
+template<class T>
+size_t CircularBuffer<T>::size_no_wait() const
+{
     size_t size = this->max_size;
 
     if (!this->full)
     {
-        if (this->write_index >= this->read_index)
+        auto write = this->write_index;
+        auto read = this->read_index;
+        if (write >= read)
         {
-            size = this->write_index - this->read_index;
+            size = write - read;
         }
         else
         {
-            size = this->max_size + this->write_index - this->read_index;
+            size = this->max_size + write - read;
         }
     }
 
-    this->mutex.unlock();
     return size;
 }
 
