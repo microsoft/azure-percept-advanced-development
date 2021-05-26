@@ -183,7 +183,11 @@ static void parse_model_update(const std::string &json_str)
     std::string model_config_json = "";
     if (model_config != nullptr)
     {
-        model_config_json = json::object_to_string(model_config);
+        bool converted = json::object_to_string(model_config, model_config_json);
+        if (!converted)
+        {
+            util::log_error("Could not convert the model configuration from JSON object into a JSON string.");
+        }
     }
 
     parameters_changed = secure::update_secure_model_params(mm_server_url, model_name, model_version, enable_secure_ai, download_model_from_mm_server, model_url);

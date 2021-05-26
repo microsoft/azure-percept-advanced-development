@@ -12,17 +12,28 @@
 
 namespace json {
 
-std::string object_to_string(const JSON_Object *obj)
+bool object_to_string(const JSON_Object *obj, std::string &ret)
 {
     if (obj == nullptr)
     {
         util::log_error("Given a nullptr for JSON_Object in object_to_string function.");
-        return "";
+        return false;
     }
-    char *serialized_string = json_serialize_to_string_pretty((JSON_Value *)obj);
-    std::string ret(serialized_string);
+
+    // Create a root value to assign this object to
+    JSON_Value *root_value = json_value_init_object();
+
+    char *serialized_string = json_serialize_to_string_pretty(root_value);
+    if (serialized_string == nullptr)
+    {
+        util::log_error("Could not serialize an object into a string.");
+        return false;
+    }
+
+    ret = std::string(serialized_string);
     json_free_serialized_string(serialized_string);
-    return ret;
+    json_value_free(root_value);
+    return true;
 }
 
 } // namespace json

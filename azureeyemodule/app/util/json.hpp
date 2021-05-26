@@ -216,7 +216,7 @@ T parse_string(const std::string &json_as_str, const std::string &key, T default
     }
 }
 
-/** Converts the given JSON_Object to a string. If the pointer is NULL, we return an empty string and print an error. */
-std::string object_to_string(const JSON_Object *obj);
+/** Converts the given JSON_Object to a string. If we cannot serialize `obj` into a string, we print an error and return false, leaving `ret` unfilled. */
+bool object_to_string(const JSON_Object *obj, std::string &ret);
 
 } // namespace json
