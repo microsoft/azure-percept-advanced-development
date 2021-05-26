@@ -154,6 +154,43 @@ bool search_keyword_in_file(std::string keyword, std::string filename)
     return false;
 }
 
+std::string timestamp_to_string(int64_t ts)
+{
+    // Compose date, hour, minute, and second
+    static char buf[100];
+    std::time_t ts_tmp = (int64_t)(ts / 1E9);
+    struct std::tm *time = gmtime(&ts_tmp);
+    std::strftime(buf, sizeof(buf), "%F %I:%M:%S%p ", time);
+    std::string first_half = std::string(buf);
+
+    // Compose millisecond, microsecond, and nanosecond
+    //
+    // Get the number of seconds we just used in the first half of the timestamp
+    auto ts_as_duration = std::chrono::duration<int64_t, std::nano>(ts);
+    auto ts_as_timepoint = std::chrono::time_point<std::chrono::system_clock>(ts_as_duration);
+    auto time_since_epoch_in_seconds = std::chrono::duration_cast<std::chrono::seconds>(ts_as_timepoint.time_since_epoch());
+
+    // Convert that to nanosecond resolution (just zeros from seconds on)
+    auto seconds_portion_in_nanoseconds_resolution = std::chrono::duration_cast<std::chrono::nanoseconds>(time_since_epoch_in_seconds).count();
+
+    // Get the remaining number of nanoseconds after we subtract the nanoseconds it took to get the hour, minute, second
+    assert(ts >= seconds_portion_in_nanoseconds_resolution);
+    int64_t ns_remaining = ts - seconds_portion_in_nanoseconds_resolution;
+
+    // Turn this number of nanoseconds into milliseconds, microseconds, and finally, remaining nanoseconds
+    auto ms = (int64_t)(ns_remaining / 1E6);
+    ns_remaining -= (int64_t)(ms * 1E6);
+
+    auto us = (int64_t)(ns_remaining / 1E3);
+    ns_remaining -= (int64_t)(us * 1E3);
+
+    auto ns = ns_remaining;
+
+    // Compose the second half of the string
+    std::string second_half = std::to_string(ms) + "ms " + std::to_string(us) + "us " + std::to_string(ns) + "ns";
+    return first_half + second_half;
+}
+
 void version()
 {
     system("stat -c 'Inference App Version: %y' /app/inference | cut -c -33");

@@ -4,6 +4,7 @@
 
 // Standard library includes
 #include <string>
+#include <tuple>
 
 // Third party includes
 #include <opencv2/gapi/mx.hpp>
@@ -12,6 +13,7 @@
 #include "parser.hpp"
 #include "../util/helper.hpp"
 #include "../util/timing.hpp"
+#include "../util/time_aligned_buffer.hpp"
 
 namespace model {
 
@@ -68,9 +70,17 @@ public:
     virtual void update_data_collection_params(bool enable, unsigned long int interval_seconds);
 
     /**
+     * Update the model's time alignment property.
+     */
+    void update_time_alignment(bool enable);
+
+    /**
      * Get the model's data collecion loop parameters.
      */
     void get_data_collection_params(bool &enable, unsigned long int &interval) const;
+
+    /** Gets whether we are aligning frames in time. */
+    bool get_time_alignment_setting() const;
 
     /**
      * Block until the Myriad X device is ready.
@@ -110,6 +120,9 @@ protected:
     /** A status message to display on the RTSP feed */
     std::string status_msg = "";
 
+    /** Should we align RTSP frames with inferences in time? */
+    volatile bool align_frames_in_time = false;
+
     /** If this gets set to true, we stop the pipeline and return from the run function */
     volatile bool restarting = false;
 
@@ -118,6 +131,9 @@ protected:
 
     /** Write the H264 outputs to a file if videofile is non-empty and we have a result ready in the out_264 node. Also writes to the RTSP feed. */
     void handle_h264_output(cv::optional<std::vector<uint8_t>> &out_h264, const cv::optional<int64_t> &out_h264_ts, const cv::optional<int64_t> &out_h264_seqno, std::ofstream &ofs) const;
+
+    /** Aligns the new inference in time with frames and calls the given lambda on each frame. Use this lambda to mark up the frames using this new inference. */
+    void handle_new_inference_for_time_alignment(int64_t inference_ts, std::function<void(cv::Mat&)> f_to_apply_to_each_frame);
 
     /** Use adpative logging to log the inference message so that it does not pollute the log files */
     void log_inference(const std::string &msg);
@@ -128,7 +144,13 @@ protected:
     /** Save the retraining data if data collection is enabled and this frame lands on the right period. */
     void save_retraining_data(const cv::Mat &original_bgr);
 
+    /** Handles the streaming of frames over RTSP by dumping them into the server if we don't want to time-align, or by dumping them into a buffer if we do. */
+    void stream_frames(const cv::Mat &raw_frame, const cv::Mat &result_frame, int64_t frame_ts);
+
 private:
+    /** Framebuffer of timestamped frames. */
+    timebuf::TimeAlignedBuffer timestamped_frames;
+
     /** Timer for the data collection stuff. */
     ourtime::Timer data_collection_timer;
 

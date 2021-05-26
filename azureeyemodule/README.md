@@ -145,6 +145,10 @@ These are the allowed values for this IoT Module's twin:
 * `StreamResolution`: String. Must be one of `native`, `1080p`, or `720p`. Sets the resolution of the camera feed.
 * `TelemetryIntervalNeuralNetworkMs`: Integer. Determines how often to send messages from the neural network. Sends a message at most once every this
   many milliseconds. Please note that Azure subscriptions have a limited number of messages per day (depending on the subscription tier).
+* `TimeAlignRTSP`: Boolean. If true, we will align the RTSP raw frames with the RTSP result frames. This will cause a latency in the stream
+  equal to the amount of time it takes for your neural network to inference each frame. If false, there is no latency, but the results
+  for a frame may be written on top of frames that are farther ahead in time, leading to a noticeable lag in the results on the RTSP stream overlay.
+  This will be especially noticeable with long-latency networks, such as Faster RCNN.
 
 ## Code Flow
 
