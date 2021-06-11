@@ -79,7 +79,7 @@ cv::GStreamingCompiled YoloModel::compile_cv_graph() const
 
     // This node branches off from the preproc node for neural network inferencing.
     cv::GMat bgr = cv::gapi::streaming::desync(preproc);
-    cv::GOpaque<int64_t> nn_ts = cv::gapi::streaming::timestamp(preproc);
+    cv::GOpaque<int64_t> nn_ts = cv::gapi::streaming::timestamp(bgr);
 
     // Here's where we actually run our neural network. It runs on the VPU.
     cv::GMat nn = cv::gapi::infer<YOLONetwork>(bgr);
