@@ -60,7 +60,7 @@ public:
      * @param fps: The frames per second at which to update the `get` frame. GStreamer RTSP server will call
      *             the `get()` method at some frames per second, which may be different than this, but if the
      *             FPS values differ, you might send duplicate frames or you might not send frames as often as
-     *             you could. Best to make sure this value remains about the same as the RTSP server's.
+     *             you could. Best to make sure this value remains about the same rate as the camera which generates the frames.
      */
     explicit FrameBuffer(size_t max_length, int fps);
 
@@ -80,9 +80,6 @@ public:
 
     /** Get the number of frames we still have room for before we start overwriting old ones. */
     size_t room() const;
-
-    /** Set the rate at which we update the `get` frame. */
-    void set_fps(int fps);
 
 private:
     /** The internal container we use for holding the frames. */
