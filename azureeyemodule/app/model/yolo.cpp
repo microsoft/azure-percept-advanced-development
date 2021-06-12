@@ -30,14 +30,17 @@ YoloModel::YoloModel(const std::string &labelfpath, const std::vector<std::strin
 {
 }
 
-void YoloModel::run(cv::GStreamingCompiled* pipeline)
+void YoloModel::run(cv::GStreamingCompiled *pipeline)
 {
     while (true)
     {
+        // Wait for the VPU to come up.
         this->wait_for_device();
 
         // Read in the labels for classification
         label::load_label_file(this->class_labels, this->labelfpath);
+
+        // Log some metadata.
         this->log_parameters();
 
         // Build the camera pipeline with G-API
@@ -47,7 +50,6 @@ void YoloModel::run(cv::GStreamingCompiled* pipeline)
 
         // Pull data through the pipeline
         bool ran_out_naturally = this->pull_data(*pipeline);
-
         if (!ran_out_naturally)
         {
             break;
@@ -57,52 +59,58 @@ void YoloModel::run(cv::GStreamingCompiled* pipeline)
 
 cv::GStreamingCompiled YoloModel::compile_cv_graph() const
 {
-    // Declare an empty GMat - the beginning of the pipeline
+    // The input node of the G-API pipeline. This will be filled in, one frame at time.
     cv::GMat in;
+
+    // We have a custom preprocessing node for the Myriad X-attached camera.
     cv::GMat preproc = cv::gapi::mx::preproc(in, this->resolution);
+
+    // This path is the H.264 path. It gets our frames one at a time from
+    // the camera and encodes them into H.264.
     cv::GArray<uint8_t> h264;
     cv::GOpaque<int64_t> h264_seqno;
     cv::GOpaque<int64_t> h264_ts;
     std::tie(h264, h264_seqno, h264_ts) = cv::gapi::streaming::encH264ts(preproc);
 
-    // We have BGR output and H264 output in the same graph.
-    // In this case, BGR always must be desynchronized from the main path
-    // to avoid internal queue overflow (FW reports this data to us via
-    // separate channels)
-    // copy() is required only to maintain the graph contracts
-    // (there must be an operation following desync()). No real copy happens
+    // We branch off from the preproc node into H.264 (above), raw BGR output (here),
+    // and neural network inferences (below).
     cv::GMat img = cv::gapi::copy(cv::gapi::streaming::desync(preproc));
+    cv::GOpaque<int64_t> img_ts = cv::gapi::streaming::timestamp(img);
 
-    // This branch has inference and is desynchronized to keep
-    // a constant framerate for the encoded stream (above)
+    // This node branches off from the preproc node for neural network inferencing.
     cv::GMat bgr = cv::gapi::streaming::desync(preproc);
+    cv::GOpaque<int64_t> nn_ts = cv::gapi::streaming::timestamp(bgr);
 
+    // Here's where we actually run our neural network. It runs on the VPU.
     cv::GMat nn = cv::gapi::infer<YOLONetwork>(bgr);
 
+    // Get some useful metadata.
     cv::GOpaque<int64_t> nn_seqno = cv::gapi::streaming::seqNo(nn);
-    cv::GOpaque<int64_t> nn_ts = cv::gapi::streaming::timestamp(nn);
     cv::GOpaque<cv::Size> sz = cv::gapi::streaming::size(bgr);
 
+    // Here's where we post-process our network's outputs into bounding boxes, IDs, and confidences.
     cv::GArray<cv::Rect> rcs;
     cv::GArray<int> ids;
     cv::GArray<float> cfs;
-
     std::tie(rcs, ids, cfs) = cv::gapi::streaming::parseYoloWithConf(nn, sz);
 
-    // Now specify the computation's boundaries
+    // Specify the boundaries of the G-API graph (the inputs and outputs).
     auto graph = cv::GComputation(cv::GIn(in),
-                                  cv::GOut(h264, h264_seqno, h264_ts,      // main path: H264 (~constant framerate)
-                                  img,                                     // desynchronized path: BGR
-                                  nn_seqno, nn_ts, rcs, ids, cfs, sz));
+                                  cv::GOut(h264, h264_seqno, h264_ts,               // H.264 branch
+                                           img, img_ts,                             // Raw frame branch
+                                           nn_seqno, nn_ts, rcs, ids, cfs, sz));    // Neural network inference branch
 
+    // Pass the actual neural network blob file into the graph. We assume we have a modelfiles of at least length 1.
+    CV_Assert(this->modelfiles.size() >= 1);
     auto networks = cv::gapi::networks(cv::gapi::mx::Params<YOLONetwork>{this->modelfiles.at(0)});
 
+    // Here we wrap up all the kernels (the implementations of the G-API ops) that we need for our graph.
     auto kernels = cv::gapi::combine(cv::gapi::mx::kernels(), cv::gapi::kernels<cv::gapi::streaming::GOCVParseYoloWithConf>());
 
-    // Compile the graph in streamnig mode, set all the parameters
+    // Compile the graph in streamnig mode; set all the parameters; feed the firmware file into the VPU.
     auto pipeline = graph.compileStreaming(cv::gapi::mx::Camera::params(), cv::compile_args(networks, kernels, cv::gapi::mx::mvcmdFile{ this->mvcmd }));
 
-    // Specify the Azure Percept's Camera as the input to the pipeline, and start processing
+    // Specify the Percept DK's camera as the input to the pipeline.
     pipeline.setSource(cv::gapi::wip::make_src<cv::gapi::mx::Camera>());
 
     return pipeline;

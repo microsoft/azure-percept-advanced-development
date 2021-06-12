@@ -37,6 +37,9 @@ static update_telemetry_interval_cb_t update_telemetry_interval_cb = nullptr;
 /** The callback for updating the resolution in the model pipeline. */
 static update_resolution_cb_t update_resolution_cb = nullptr;
 
+/** The callback function for updating the time alignment feature. */
+static update_time_alignment_cb_t update_time_alignment_cb = nullptr;
+
 /** Update the intervals for the telemetry channels. */
 static void update_telemetry_intervals(unsigned long int nn_interval_ms)
 {
@@ -86,6 +89,19 @@ static void update_model(const secure::SecureAIParams &params)
 
     // Update the model
     (*update_cb)(params.to_string(), true);
+}
+
+/** Update the time alignment feature based on the callback we are given from main. */
+static void update_time_alignment(bool align)
+{
+    if (update_time_alignment_cb == nullptr)
+    {
+        util::log_info("Attempting to update the time alignment feature before a callback function is set.");
+        return;
+    }
+
+    // Update
+    (*update_time_alignment_cb)(align);
 }
 
 /** Parse out the logging stuff from the module twin. Here we update our log level based on module twin. */
@@ -223,7 +239,10 @@ static void parse_model_update(JSON_Object *root_object)
         model_url = json_object_get_string(root_object, "ModelZipUrl");
     }
 
+    // BLOCKS until it can get the mutex for the secure AI params.
+    util::log_debug("Accessing update_secure_model_params mutex from IoT update.");
     parameters_changed = secure::update_secure_model_params(mm_server_url, model_name, model_version, enable_secure_ai, download_model_from_mm_server, model_url);
+    util::log_debug("Done accessing update_secure_model_params mutex from IoT update.");
 
     if (enable_secure_ai && parameters_changed)
     {
@@ -232,7 +251,10 @@ static void parse_model_update(JSON_Object *root_object)
             if (download_model_from_mm_server || (!download_model_from_mm_server && !model_url.empty()))
             {
                 // We have enabled secure AI and we find the model config changes from the previous version. So we should update using the secure route now.
+                // BLOCKS until it can get the mutex for the secure AI params.
+                util::log_debug("Accessing get_model_params mutex from IoT update.");
                 update_model(secure::get_model_params());
+                util::log_debug("Done accessing get_model_params mutex from IoT Update.");
             }
             else
             {
@@ -286,16 +308,17 @@ static void parse_streams(JSON_Object *root_object)
     }
 
     std::string resolution;
-    std::string old_resolution = rtsp::get_resolution(rtsp::StreamType::RAW); // Right now all streams use the same resolution
+    rtsp::Resolution old_resolution = rtsp::get_resolution(rtsp::StreamType::RAW); // Right now all streams use the same resolution
     bool changed = false;
     if (json_object_dotget_value(root_object, "desired.StreamResolution") != nullptr)
     {
         resolution = std::string(json_object_dotget_string(root_object, "desired.StreamResolution"));
         if (rtsp::is_valid_resolution(std::string(resolution)))
         {
-            rtsp::set_stream_params(rtsp::StreamType::RAW, std::string(resolution));
-            rtsp::set_stream_params(rtsp::StreamType::RESULT, std::string(resolution));
-            changed = old_resolution != resolution;
+            rtsp::Resolution new_resolution = rtsp::resolution_string_to_enum(resolution);
+            rtsp::set_stream_params(rtsp::StreamType::RAW, new_resolution);
+            rtsp::set_stream_params(rtsp::StreamType::RESULT, new_resolution);
+            changed = old_resolution != new_resolution;
         }
         else
         {
@@ -307,9 +330,10 @@ static void parse_streams(JSON_Object *root_object)
         resolution = std::string(json_object_dotget_string(root_object, "StreamResolution"));
         if (rtsp::is_valid_resolution(std::string(resolution)))
         {
-            rtsp::set_stream_params(rtsp::StreamType::RAW, std::string(resolution));
-            rtsp::set_stream_params(rtsp::StreamType::RESULT, std::string(resolution));
-            changed = old_resolution != resolution;
+            rtsp::Resolution new_resolution = rtsp::resolution_string_to_enum(resolution);
+            rtsp::set_stream_params(rtsp::StreamType::RAW, new_resolution);
+            rtsp::set_stream_params(rtsp::StreamType::RESULT, new_resolution);
+            changed = old_resolution != new_resolution;
         }
         else
         {
@@ -320,12 +344,12 @@ static void parse_streams(JSON_Object *root_object)
     // If the resolution changed, we need to restart the pipeline with the new resolution.
     if (changed)
     {
-        util::log_info("Old resolution: \"" + old_resolution + "\", New resolution: \"" + resolution + "\". Values are different, so updating.");
-        restart_model_with_new_resolution(resolution);
+        util::log_info("Old resolution: \"" + rtsp::resolution_to_string(old_resolution) + "\", New resolution: \"" + resolution + "\". Values are different, so updating.");
+        restart_model_with_new_resolution(rtsp::resolution_string_to_enum(resolution));
     }
     else
     {
-        util::log_info("Old resolution: \"" + old_resolution + "\", New resolution: \"" + resolution + "\". Values are the same, so ignoring.");
+        util::log_info("Old resolution: \"" + rtsp::resolution_to_string(old_resolution) + "\", New resolution: \"" + resolution + "\". Values are the same, so ignoring.");
     }
 }
 
@@ -346,6 +370,23 @@ static void parse_telemetry(JSON_Object *root_object)
     }
 }
 
+/** Parse out and deal with the RTSP time alignment feature. */
+static void parse_time_alignment(JSON_Object *root_object)
+{
+    if (json_object_dotget_value(root_object, "desired.TimeAlignRTSP") != nullptr)
+    {
+        bool time_align = json_object_dotget_boolean(root_object, "desired.TimeAlignRTSP");
+        util::log_info("Time Align RTSP Streams: " + (time_align ? std::string("yes") : std::string("no")));
+        update_time_alignment(time_align);
+    }
+    if (json_object_get_value(root_object, "TimeAlignRTSP") != nullptr)
+    {
+        bool time_align = json_object_dotget_boolean(root_object, "TimeAlignRTSP");
+        util::log_info("Time Align RTSP Streams: " + (time_align ? std::string("yes") : std::string("no")));
+        update_time_alignment(time_align);
+    }
+}
+
 /** This is the callback for when the module twin changes. */
 static void module_twin_callback(DEVICE_TWIN_UPDATE_STATE update_state, const unsigned char *payload, size_t size, void *user_context_cb)
 {
@@ -360,9 +401,10 @@ static void module_twin_callback(DEVICE_TWIN_UPDATE_STATE update_state, const un
     parse_telemetry(root_object);
     parse_model_update(root_object);
     parse_streams(root_object);
+    parse_time_alignment(root_object);
 }
 
-void restart_model_with_new_resolution(const std::string &resolution)
+void restart_model_with_new_resolution(const rtsp::Resolution &resolution)
 {
     if (update_resolution_cb == nullptr)
     {
@@ -402,6 +444,11 @@ void set_update_resolution_callback(update_resolution_cb_t callback)
 void set_update_telemetry_intervals_callback(update_telemetry_interval_cb_t callback)
 {
     update_telemetry_interval_cb = callback;
+}
+
+void set_update_time_alignment_callback(update_time_alignment_cb_t callback)
+{
+    update_time_alignment_cb = callback;
 }
 
 } // namespace update
