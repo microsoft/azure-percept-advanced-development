@@ -65,7 +65,7 @@ sudo iptables -A INPUT -p tcp --dport 8554 -j ACCEPT
 
 ## Setup for notebooks
 
-### Option 1:  Local machine setup
+### Local machine setup
 
 1. Get Python 3.6+ ([Anaconda](https://www.anaconda.com/products/individual) is recommended).
 
@@ -94,11 +94,7 @@ pip install -r requirements.txt
 jupyter lab
 ```
 
-7. Access the notebooks locally from Jupyter Lab.
-
-### Option 2:  Docker setup
-
-Coming soon.
+7. Access the notebooks locally from Jupyter Lab at the address provided when starting Jupyter Lab.
 
 ## Instructions
 
@@ -112,6 +108,6 @@ Work through the following notebooks in order.
 
 ## Results in Web Stream from Percept DK
 
-This web stream was accessible on the local network at:  `https://<ip-address-of-your-device>:3000`.
+This web stream was accessible on a local network at:  `https://<ip-address-of-your-device>:3000`.  Only 50 images per class of objects was used to train the model, so the results could be improved with more data.
 
-<img src="article_images/plastic_bottles_run16.png" width="50%">
+<img src="article_images/percept_webstream.png" width="50%">
