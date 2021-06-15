@@ -99,7 +99,7 @@ const std::string rtsp_result_tcp_source_name = "rtsp-src-result-tcp";
 const std::string rtsp_h264_source_name = "rtsp-src-h.264";
 
 /** Default FPS. */
-const int DEFAULT_FPS = 10;
+const int DEFAULT_FPS = 30;
 
 /** Struct to contain the parameters for the raw UDP stream. Read by a callback function. */
 static StreamParameters raw_udp_context {
@@ -734,13 +734,11 @@ void set_stream_params(const StreamType &type, int fps)
     switch (type)
     {
         case StreamType::RAW:
-            raw_buffer.set_fps(fps);
             raw_udp_context.fps = fps;
             raw_tcp_context.fps = fps;
             util::log_info("Raw RTSP Stream's FPS changed to " + std::to_string(fps));
             break;
         case StreamType::RESULT:
-            result_buffer.set_fps(fps);
             result_udp_context.fps = fps;
             result_tcp_context.fps = fps;
             util::log_info("Result RTSP Stream's FPS changed to " + std::to_string(fps));

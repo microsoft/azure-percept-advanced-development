@@ -117,9 +117,4 @@ size_t FrameBuffer::room() const
     }
 }
 
-void FrameBuffer::set_fps(int fps)
-{
-    this->fps.exchange(fps);
-}
-
 } // namespace rtsp
