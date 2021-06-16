@@ -8,6 +8,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <sstream>
 
 // Third party includes
 #include <opencv2/gapi/mx.hpp>
@@ -37,7 +38,7 @@ ObjectDetector::~ObjectDetector()
 bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
 {
     // All of our object detector models have the same graph outputs.
-
+    util::log_info("**** enter pull_data");
     // These are the nodes from the raw camera frame path.
     cv::optional<cv::Mat> out_bgr;
     cv::optional<int64_t> out_bgr_ts;
@@ -51,10 +52,12 @@ bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
     cv::optional<cv::Mat> out_nn;
     cv::optional<int64_t> out_nn_ts;
     cv::optional<int64_t> out_nn_seqno;
-    cv::optional<std::vector<cv::Rect>> out_boxes;
-    cv::optional<std::vector<int>> out_labels;
+    std::vector<cv::Rect> out_boxes;
+    std::vector<int> out_labels;
     cv::optional<std::vector<float>> out_confidences;
     cv::optional<cv::Size> out_size;
+    int64_t               out_seqno;
+    int64_t               out_ts;
 
     // These are the values that we cache (since the graph is asynchronous).
     std::vector<cv::Rect> last_boxes;
@@ -72,12 +75,19 @@ bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
     // Pull the data from the pipeline while it is running
     // Every time we call pull(), G-API gives us whatever nodes it has ready.
     // So we have to make sure a node has useful contents before using it.
-    while (pipeline.pull(cv::gout(out_h264, out_h264_seqno, out_h264_ts, out_bgr, out_bgr_ts, out_nn_seqno, out_nn_ts, out_boxes, out_labels, out_confidences, out_size)))
+    auto pipeline_outputs = cv::gout(out_boxes, out_labels, out_seqno, out_ts);
+    //auto pipeline_outputs = cv::gout(out_boxes, out_labels);
+    //pipeline_outputs += cv::gout(last_bgr);
+    while (pipeline.pull(std::move(pipeline_outputs)))
     {
-        this->handle_h264_output(out_h264, out_h264_ts, out_h264_seqno, ofs);
-        this->handle_inference_output(out_nn_ts, out_nn_seqno, out_boxes, out_labels, out_confidences, out_size, last_boxes, last_labels, last_confidences);
-        this->handle_bgr_output(out_bgr, out_bgr_ts, last_bgr, last_boxes, last_labels, last_confidences);
+        //this->handle_h264_output(out_h264, out_h264_ts, out_h264_seqno, ofs);
+        //this->handle_inference_output(out_nn_ts, out_nn_seqno, out_boxes, out_labels, out_confidences, out_size, last_boxes, last_labels, last_confidences);
+        //this->handle_bgr_output(out_bgr, out_bgr_ts, last_bgr, last_boxes, last_labels, last_confidences);
 
+        for (std::size_t i = 0; i < out_boxes.size(); i++) { 
+            //util::log_info("detected , label " + std::to_string(out_labels[i]) + " out_seqno = " + std::to_string(out_seqno) + " out_ts = " + std::to_string(out_ts));
+            //util::log_info("last_bgr:  [" + std::to_string(last_bgr.cols) + " , " + std::to_string(last_bgr.rows));
+        }
         if (this->restarting)
         {
             // We've been interrupted

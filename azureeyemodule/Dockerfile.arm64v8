@@ -5,7 +5,7 @@
 
 # docker build -t azureeyemodule -f Dockerfile.arm64v8 .
 
-FROM mcr.microsoft.com/azureedgedevices/azureeyebase:latest-arm64v8
+FROM devinworacroqaigatl.azurecr.io/azureeyebase:0526
 
 ARG ARCH=aarch64
 
@@ -76,10 +76,6 @@ RUN cd /app && \
           -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
           .. && \
     make -j $(nproc) && \
-    mv /app/build/inference /app/inference && \
-    rm -rf /app/build && \
-    rm -rf /app/*.c* && \
-    rm -rf /app/*.h* && \
-    rm -rf /app/*.txt
+    mv /app/build/inference /app/inference
 
 CMD ["/bin/bash", "-c", "./app/inference"]
