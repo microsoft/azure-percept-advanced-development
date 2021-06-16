@@ -1,6 +1,6 @@
 #############################################################################################
-# Copyright: Microsoft 2021
-# License: MIT
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
 # Purpose:  This Dockerfile is for use with Azure ML TF Object Detection experiments.
 # It's the base of an Environment image for training object detection models.
 # The base is from a build of the TensorFlow Object Detection API.
@@ -13,12 +13,13 @@ FROM nvidia/cuda:10.0-cudnn7-runtime
 ENV DEBIAN_FRONTEND noninteractive
 
 RUN apt-get update \
-      && apt-get install --no-install-recommends --no-install-suggests -y gnupg2 ca-certificates \
-            git build-essential libopencv-dev python3-opencv \
-      && rm -rf /var/lib/apt/lists/*
-
-RUN apt-get update \
-      && apt-get install --no-install-recommends --no-install-suggests -y libopencv-highgui3.2 \
+      && apt-get install --no-install-recommends --no-install-suggests -y \
+      libopencv-dev \
+      python3-opencv \
+      build-essential \
+      gnupg2  \
+      ca-certificates \
+      libopencv-highgui3.2 \
       wget \
       bzip2 \
       git \
@@ -27,10 +28,9 @@ RUN apt-get update \
       libxext6 \
       unzip \
       curl \
+      protobuf-compiler \
+      python-tk \
       && rm -rf /var/lib/apt/lists/*
-      
-RUN apt-get update \
-    && apt-get install -y -qq protobuf-compiler python-tk
 
 # Get Python in the form of Miniconda
 RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh && \

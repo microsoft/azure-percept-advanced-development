@@ -43,7 +43,7 @@ class ImageDataset():
     def save_entry(self, image, category):
         """Saves an image in BGR8 format to dataset for category"""
         if category not in self.categories:
-            raise KeyError('There is no category named %s in this dataset.' % category)
+            raise KeyError(f"There is no category named {category} in this dataset.")
             
         filename = str(uuid.uuid1()) + '.jpg'
         category_directory = os.path.join(self.directory, category)

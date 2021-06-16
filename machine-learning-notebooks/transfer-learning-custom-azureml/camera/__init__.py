@@ -1,1 +1,1 @@
-from .camera import Camera
+from .capture_camera import Camera
