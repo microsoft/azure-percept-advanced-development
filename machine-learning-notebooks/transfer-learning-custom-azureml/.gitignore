@@ -1,0 +1,9 @@
+.ipynb_checkpoints
+__pycache__
+.DS_Store
+experiment_outputs/
+data/
+config.json
+project_files/
+my_custom_model*
+*.zip

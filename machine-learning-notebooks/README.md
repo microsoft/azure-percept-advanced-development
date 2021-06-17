@@ -22,6 +22,11 @@ the device. There are two tutorial options to guide you through working with the
 
 - [Local development](transfer-learning/transfer-learning-local.md): in this tutorial, you will run the notebook locally within VS Code, but using a remote compute instance.
 
-**Note**: This notebook is a little out-dated. It uses TensorFlow 1.x, rather than 2.x, and it doesn't use AML features or Docker to manage dependencies.
-There is work planned to improve this notebook, but it still works, and for now, please use it as an example of how you might go about doing transfer
-learning for the device.
+**Note**:  This notebook doesn't use AML features or Docker to manage dependencies.  This notebook is a little out-dated. It uses TensorFlow 1.x, rather than 2.x.  There is work planned to improve this notebook, but it still works, and for now, please use it as an example of how you might go about doing transfer learning for the device.
+
+## Transfer Learning using Single Shot Detector - Integrated with Azure ML
+
+In this [folder](transfer-learning-custom-azureml/), you can see how to do transfer learning for an SSD network, as above, but also how to collect custom data from the Percept DK Vision camera and train a custom model on that data with an end-to-end Jupyter notebook experience.  You also will learn how to label data in Azure ML Labeling projects.
+
+**Note**: The model training notebook is a little out-dated. It uses TensorFlow 1.x, rather than 2.x.  There is work planned to improve this notebook, but it still works, and for now, please use it as an example of how you might go about doing transfer learning for the device.
+

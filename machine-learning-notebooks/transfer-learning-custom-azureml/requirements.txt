@@ -1,0 +1,7 @@
+jupyter==1.0.0
+jupyterlab==3.0.12
+Pillow==8.1.2
+azureml-core==1.30.0
+opencv-python~=4.5
+matplotlib~=3.3
+numpy~=1.18
