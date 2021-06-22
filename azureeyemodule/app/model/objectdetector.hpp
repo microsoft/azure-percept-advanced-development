@@ -62,7 +62,7 @@ protected:
      * @param last_confidences: The latest neural network output confidence(s) to use in marking up the RTSP stream if we are not time aligning.
      */
     virtual void handle_bgr_output(cv::optional<cv::Mat> &out_bgr, const cv::optional<int64_t> &out_bgr_ts, cv::Mat &last_bgr, const std::vector<cv::Rect> &last_boxes, const std::vector<int> &last_labels, const std::vector<float> &last_confidences);
-    //virtual void handle_bgr_output_uvc(cv::optional<cv::Mat> &out_bgr, const cv::optional<int64_t> &out_bgr_ts, cv::Mat &last_bgr, const std::vector<cv::Rect> &last_boxes, const std::vector<int> &last_labels, const std::vector<float> &last_confidences);
+    virtual void handle_bgr_output_uvc(cv::optional<cv::Mat> &out_bgr, cv::Mat &last_bgr, const std::vector<cv::Rect> &last_boxes, const std::vector<int> &last_labels, const std::vector<float> &last_confidences);
 
     /**
      * The G-API graph in the object detection subclasses is split into three branches: a branch that handles the H.264 encoding, a branch that
