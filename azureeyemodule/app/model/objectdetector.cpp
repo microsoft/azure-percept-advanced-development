@@ -40,7 +40,7 @@ bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
     // All of our object detector models have the same graph outputs.
     util::log_info("**** enter pull_data");
     // These are the nodes from the raw camera frame path.
-    cv::optional<cv::Mat> out_bgr;
+    cv::Mat out_bgr;
     cv::optional<int64_t> out_bgr_ts;
 
     // These are the nodes from the H.264 path.
@@ -75,9 +75,10 @@ bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
     // Pull the data from the pipeline while it is running
     // Every time we call pull(), G-API gives us whatever nodes it has ready.
     // So we have to make sure a node has useful contents before using it.
-    auto pipeline_outputs = cv::gout(out_boxes, out_labels, out_seqno, out_ts);
+    auto pipeline_outputs = cv::gout(out_boxes, out_labels, out_confidences, out_seqno, out_ts);
     //auto pipeline_outputs = cv::gout(out_boxes, out_labels);
-    //pipeline_outputs += cv::gout(last_bgr);
+    pipeline_outputs += cv::gout(out_bgr);
+    //pipeline_outputs += cv::gout(out_bgr_ts);
     while (pipeline.pull(std::move(pipeline_outputs)))
     {
         //this->handle_h264_output(out_h264, out_h264_ts, out_h264_seqno, ofs);
@@ -85,9 +86,65 @@ bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
         //this->handle_bgr_output(out_bgr, out_bgr_ts, last_bgr, last_boxes, last_labels, last_confidences);
 
         for (std::size_t i = 0; i < out_boxes.size(); i++) { 
-            //util::log_info("detected , label " + std::to_string(out_labels[i]) + " out_seqno = " + std::to_string(out_seqno) + " out_ts = " + std::to_string(out_ts));
-            //util::log_info("last_bgr:  [" + std::to_string(last_bgr.cols) + " , " + std::to_string(last_bgr.rows));
+            util::log_info("out_bgr:  [" + std::to_string(out_bgr.cols) + " , " + std::to_string(out_bgr.rows));
+            util::log_info("last_bgr:  [" + std::to_string(last_bgr.cols) + " , " + std::to_string(last_bgr.rows));
         }
+        cv::imwrite("out_bgr.jpg", out_bgr);
+        if (this->restarting)
+        {
+            // We've been interrupted
+            this->cleanup(pipeline, last_bgr);
+            return false;
+        }
+    }
+
+    // Ran out of frames
+    return true;
+}
+
+bool ObjectDetector::pull_data_uvc(cv::GStreamingCompiled &pipeline)
+{
+    // All of our object detector models have the same graph outputs.
+    // These are the nodes from the raw camera frame path.
+    cv::Mat out_bgr;
+
+    // These are th enodes from the neural network inference path.
+    std::vector<cv::Rect> out_boxes;
+    std::vector<int> out_labels;
+    std::vector<float> out_confidences;
+    cv::Size out_size;
+    int64_t               out_seqno;
+    int64_t               out_ts;
+
+    // These are the values that we cache (since the graph is asynchronous).
+    std::vector<cv::Rect> last_boxes;
+    std::vector<int> last_labels;
+    std::vector<float> last_confidences;
+    cv::Mat last_bgr;
+
+    // If the user wants to record a video, we open the video file.
+    std::ofstream ofs;
+    if (!this->videofile.empty())
+    {
+        ofs.open(this->videofile, std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
+    }
+
+    // Pull the data from the pipeline while it is running
+    // Every time we call pull(), G-API gives us whatever nodes it has ready.
+    // So we have to make sure a node has useful contents before using it.
+    auto pipeline_outputs = cv::gout(out_boxes, out_labels, out_confidences, out_size, out_seqno, out_ts);
+
+    pipeline_outputs += cv::gout(out_bgr);
+    while (pipeline.pull(std::move(pipeline_outputs)))
+    {
+        //this->handle_h264_output(out_h264, out_h264_ts, out_h264_seqno, ofs);
+        //this->handle_inference_output(out_ts, out_seqno, out_boxes, out_labels, out_confidences, out_size, last_boxes, last_labels, last_confidences);
+        //this->handle_bgr_output(out_bgr, out_bgr_ts, last_bgr, last_boxes, last_labels, last_confidences);
+
+        for (std::size_t i = 0; i < out_boxes.size(); i++) { 
+            util::log_info("detected , label " + std::to_string(out_labels[i]) + ", confidence: + " + std::to_string(out_confidences[i]) + " , out_seqno = " + std::to_string(out_seqno) + " out_ts = " + std::to_string(out_ts));
+        }
+        cv::imwrite("out_bgr.jpg", out_bgr);
         if (this->restarting)
         {
             // We've been interrupted
