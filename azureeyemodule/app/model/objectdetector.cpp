@@ -38,9 +38,9 @@ ObjectDetector::~ObjectDetector()
 bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
 {
     // All of our object detector models have the same graph outputs.
-    util::log_info("**** enter pull_data");
+
     // These are the nodes from the raw camera frame path.
-    cv::Mat out_bgr;
+    cv::optional<cv::Mat> out_bgr;
     cv::optional<int64_t> out_bgr_ts;
 
     // These are the nodes from the H.264 path.
@@ -52,12 +52,10 @@ bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
     cv::optional<cv::Mat> out_nn;
     cv::optional<int64_t> out_nn_ts;
     cv::optional<int64_t> out_nn_seqno;
-    std::vector<cv::Rect> out_boxes;
-    std::vector<int> out_labels;
+    cv::optional<std::vector<cv::Rect>> out_boxes;
+    cv::optional<std::vector<int>> out_labels;
     cv::optional<std::vector<float>> out_confidences;
     cv::optional<cv::Size> out_size;
-    int64_t               out_seqno;
-    int64_t               out_ts;
 
     // These are the values that we cache (since the graph is asynchronous).
     std::vector<cv::Rect> last_boxes;
@@ -75,21 +73,12 @@ bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
     // Pull the data from the pipeline while it is running
     // Every time we call pull(), G-API gives us whatever nodes it has ready.
     // So we have to make sure a node has useful contents before using it.
-    auto pipeline_outputs = cv::gout(out_boxes, out_labels, out_confidences, out_seqno, out_ts);
-    //auto pipeline_outputs = cv::gout(out_boxes, out_labels);
-    pipeline_outputs += cv::gout(out_bgr);
-    //pipeline_outputs += cv::gout(out_bgr_ts);
-    while (pipeline.pull(std::move(pipeline_outputs)))
+    while (pipeline.pull(cv::gout(out_h264, out_h264_seqno, out_h264_ts, out_bgr, out_bgr_ts, out_nn_seqno, out_nn_ts, out_boxes, out_labels, out_confidences, out_size)))
     {
-        //this->handle_h264_output(out_h264, out_h264_ts, out_h264_seqno, ofs);
-        //this->handle_inference_output(out_nn_ts, out_nn_seqno, out_boxes, out_labels, out_confidences, out_size, last_boxes, last_labels, last_confidences);
-        //this->handle_bgr_output(out_bgr, out_bgr_ts, last_bgr, last_boxes, last_labels, last_confidences);
+        this->handle_h264_output(out_h264, out_h264_ts, out_h264_seqno, ofs);
+        this->handle_inference_output(out_nn_ts, out_nn_seqno, out_boxes, out_labels, out_confidences, out_size, last_boxes, last_labels, last_confidences);
+        this->handle_bgr_output(out_bgr, out_bgr_ts, last_bgr, last_boxes, last_labels, last_confidences);
 
-        for (std::size_t i = 0; i < out_boxes.size(); i++) { 
-            util::log_info("out_bgr:  [" + std::to_string(out_bgr.cols) + " , " + std::to_string(out_bgr.rows));
-            util::log_info("last_bgr:  [" + std::to_string(last_bgr.cols) + " , " + std::to_string(last_bgr.rows));
-        }
-        cv::imwrite("out_bgr.jpg", out_bgr);
         if (this->restarting)
         {
             // We've been interrupted
@@ -113,10 +102,9 @@ bool ObjectDetector::pull_data_uvc(cv::GStreamingCompiled &pipeline)
     cv::optional<std::vector<int>> out_labels;
     cv::optional<std::vector<float>> out_confidences;
     cv::optional<cv::Size> out_size;
-    cv::optional<int64_t>               out_seqno;
-    cv::optional<int64_t>               out_ts;
+    cv::optional<int64_t> out_seqno;
+    cv::optional<int64_t> out_ts;
 
-    // These are the values that we cache (since the graph is asynchronous).
     std::vector<cv::Rect> last_boxes;
     std::vector<int> last_labels;
     std::vector<float> last_confidences;
@@ -137,10 +125,12 @@ bool ObjectDetector::pull_data_uvc(cv::GStreamingCompiled &pipeline)
     pipeline_outputs += cv::gout(out_bgr);
     while (pipeline.pull(std::move(pipeline_outputs)))
     {
-        //this->handle_h264_output(out_h264, out_h264_ts, out_h264_seqno, ofs);
+        //Generic UVC camera doesn't provide H264 stream so we don't handle h264 output here
         this->handle_inference_output(out_ts, out_seqno, out_boxes, out_labels, out_confidences, out_size, last_boxes, last_labels, last_confidences);
-        //this->handle_bgr_output(out_bgr, out_bgr_ts, last_bgr, last_boxes, last_labels, last_confidences);
-        this->handle_bgr_output_uvc(out_bgr, last_bgr, last_boxes, last_labels, last_confidences);
+        //Intel doesn't provide frame timestamp for UVC camera input so we use the timestamp of inference results object here, 
+        //which is identical to the frame timestamp
+        this->handle_bgr_output(out_bgr, out_ts, last_bgr, last_boxes, last_labels, last_confidences);
+
         if (this->restarting)
         {
             // We've been interrupted
@@ -241,8 +231,8 @@ void ObjectDetector::handle_inference_output(const cv::optional<int64_t> &out_nn
     #ifdef DEBUG_TIME_ALIGNMENT
         util::log_debug("Sending a new inference to time algo.");
     #endif
-    //auto f_to_call_on_each_frame = [last_boxes, last_labels, last_confidences, this](cv::Mat &frame){ this->preview(frame, last_boxes, last_labels, last_confidences); };
-    //this->handle_new_inference_for_time_alignment(*out_nn_ts, f_to_call_on_each_frame);
+    auto f_to_call_on_each_frame = [last_boxes, last_labels, last_confidences, this](cv::Mat &frame){ this->preview(frame, last_boxes, last_labels, last_confidences); };
+    this->handle_new_inference_for_time_alignment(*out_nn_ts, f_to_call_on_each_frame);
 }
 
 void ObjectDetector::preview(cv::Mat &rgb, const std::vector<cv::Rect> &boxes, const std::vector<int> &labels, const std::vector<float> &confidences) const
@@ -295,40 +285,5 @@ void ObjectDetector::handle_bgr_output(cv::optional<cv::Mat> &out_bgr, const cv:
     // Maybe save and export the retraining data at this point
     this->save_retraining_data(last_bgr, last_confidences);
 }
-
-void ObjectDetector::handle_bgr_output_uvc(cv::optional<cv::Mat> &out_bgr, cv::Mat &last_bgr, const std::vector<cv::Rect> &last_boxes,
-                                       const std::vector<int> &last_labels, const std::vector<float> &last_confidences)
-{
-    // BGR output: visualize and optionally display
-    if (!out_bgr.has_value())
-    {
-        return;
-    }
-
-    last_bgr = *out_bgr;
-
-    cv::Mat original_bgr;
-    last_bgr.copyTo(original_bgr);
-
-    rtsp::update_data_raw(last_bgr);
-    preview(last_bgr, last_boxes, last_labels, last_confidences);
-
-    if (this->status_msg.empty())
-    {
-        rtsp::update_data_result(last_bgr);
-    }
-    else
-    {
-        cv::Mat bgr_with_status;
-        last_bgr.copyTo(bgr_with_status);
-
-        util::put_text(bgr_with_status, this->status_msg);
-        rtsp::update_data_result(bgr_with_status);
-    }
-
-    // Maybe save and export the retraining data at this point
-    this->save_retraining_data(original_bgr, last_confidences);
-}
-
 
 } // namespace model

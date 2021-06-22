@@ -36,13 +36,6 @@ GAPI_OCV_KERNEL(OCVBBoxes, BBoxes) {
     // Converts the rectangles into G-API's rendering primitives
     static void run(const std::vector<cv::Rect> &in_face_rcs,
                           std::vector<cv::gapi::wip::draw::Prim> &out_prims) {
-        out_prims.clear();
-        const auto cvt = [](const cv::Rect &rc, const cv::Scalar &clr) {
-            return cv::gapi::wip::draw::Rect(rc, clr, 2);
-        };
-        for (auto &&rc : in_face_rcs) {
-            out_prims.emplace_back(cvt(rc, CV_RGB(0,255,0)));   // green
-        }
     }
 };
 
@@ -84,23 +77,6 @@ void SSDModel::load_default()
 
 void SSDModel::run(cv::GStreamingCompiled *pipeline)
 {
-
-    // if (this->inputsource.empty()) 
-    // {
-    //     // Specify the Azure Percept's Camera as the input to the pipeline, and start processing
-    //     pipeline.setSource<cv::gapi::mx::Camera>();
-    // } else {
-    //     if (check_file_exist(this->inputsource)) 
-    //     {
-    //         pipeline.setSource<cv::gapi::wip::GCaptureSource>(this->inputsource);
-    //     }
-    //     else if (this->inputsource == "uvc") 
-    //     {
-    //         pipeline.setSource<cv::gapi::wip::GCaptureSource>(0); // default: video0
-    //     }
-    //     else 
-    //     {}
-    // }
     while (true)
     {
         // Wait for the VPU to come up.
@@ -134,7 +110,6 @@ void SSDModel::run(cv::GStreamingCompiled *pipeline)
             ran_out_naturally = this->pull_data(*pipeline);
 
         }
-
         
         if (!ran_out_naturally)
         {
