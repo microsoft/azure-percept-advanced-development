@@ -810,7 +810,7 @@ bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
 }
 ```
 
-### Using UVC(USB video class) camera as input source
+### Using UVC(USB Video Class) camera as input source
 
 Be default, the Azure Percept's Camera attached to Eye SoM is used as input source.
 
@@ -832,9 +832,10 @@ Validated on Logitech B525 HD, 720P, 30 fps.
                <the docker image you just built> \
                /app/inference --input=uvc --fps=30
     ``` 
-    where --device=/dev/video0 allows the container to access your uvc camera video0.
-          --input=uvc is the parameter for inference app which will then use uvc camera as input source.
-          --fps=30 specifies the input fps from the uvc camera.
+    where 
+    * --device=/dev/video0 allows the container to access your uvc camera video0.
+    * --input=uvc is the parameter for inference app which will then use uvc camera as input source.
+    * --fps=30 specifies the input fps from the uvc camera.
 1. Once it's started, you will see the inference results and the video stream with overlay bounding boxes and labels.
 
 ---
@@ -848,7 +849,7 @@ Please follow the sample codes to enable more models if needed.
 ### Using pre-recorded video file as input source
 
 Pre-recorded video file as input source in also supported. Supported codec is H.264 and file format includes but not limited to *.mp4, *.mkv.
-1. Assume the docker images was ready.
+1. Assume the docker image was ready.
 1. Prepare an H.264 pre-recorded video file and store in somewhere you want on the host, for example, /video/homes_00425.mkv.
    You can download a sample video from https://abhilashavastorage.blob.core.windows.net/video/homes_00425.mkv
 1. Now run the Docker container like this:
@@ -862,9 +863,10 @@ Pre-recorded video file as input source in also supported. Supported codec is H.
                <the docker image you just built> \
                /app/inference --input=video:/video/homes_00425.mkv --fps=30
     ``` 
-    where -v /video:/video is to bind the /video folder on your host to the folder with same name in container.
-          --input=video:<video file path> is to specify the pre-recorded video file path in the container
-          --fps=30 is the input video file fps.
+    where
+    * -v /video:/video is to bind the /video folder on your host to the folder with same name in container.
+    * --input=video:[video file path] is to specify the pre-recorded video file path in the container
+    * --fps=30 is the input video file fps.
 ---
 **Know issue**
 
