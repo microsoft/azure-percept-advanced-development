@@ -5,9 +5,7 @@
 
 # docker build -t azureeyemodule -f Dockerfile.amd64 .
 
-FROM devazureedgedevices.azurecr.io/azureeyebase:35235474-amd64
-
-				
+FROM mcr.microsoft.com/azureedgedevices/azureeyebase:latest-amd64
 
 ARG ARCH=x86_64
 
