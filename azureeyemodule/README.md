@@ -868,7 +868,7 @@ Pre-recorded video file as input source in also supported. Supported codec is H.
     * --input=video:[video file path] is to specify the pre-recorded video file path in the container
     * --fps=30 is the input video file fps.
 ---
-**Know issue**
+**Known issue**
 
 Hardware codec is not yet enabled in Mariner OS.
 When using the pre-recorded video as input source, it will first decode to raw frame before sending to the inference pipeline.
