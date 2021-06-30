@@ -8,7 +8,6 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include <sstream>
 
 // Third party includes
 #include <opencv2/gapi/mx.hpp>
@@ -91,7 +90,7 @@ bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
     return true;
 }
 
-bool ObjectDetector::pull_data_uvc(cv::GStreamingCompiled &pipeline)
+bool ObjectDetector::pull_data_uvc_video(cv::GStreamingCompiled &pipeline)
 {
     // All of our object detector models have the same graph outputs.
     // These are the nodes from the raw camera frame path.

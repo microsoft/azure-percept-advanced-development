@@ -52,8 +52,8 @@ private:
     /** Compile the pipeline graph for SSD when MIPI camera is input source. */
     cv::GStreamingCompiled compile_cv_graph() const;
 
-    /** Compile the pipeline graph for SSD when uvc camera is input source. This is slightly different from the inbox MIPI camera */
-    cv::GStreamingCompiled compile_cv_graph_uvc() const;
+    /** Compile the pipeline graph for SSD when either uvc camera or video file is input source. The steps inside are slightly different from the inbox MIPI camera */
+    cv::GStreamingCompiled compile_cv_graph_uvc_video() const;
 
     /** Print out all the model's meta information. */
     void log_parameters() const;

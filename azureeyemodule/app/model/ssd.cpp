@@ -65,11 +65,11 @@ SSDModel::SSDModel(const std::string &labelfpath, const std::vector<std::string>
 
 void SSDModel::load_default()
 {
-    // int ret = util::run_command("rm -rf /app/model && mkdir /app/model");
-    // if (ret != 0)
-    // {
-    //     util::log_error("rm && mkdir failed with " + ret);
-    // }
+    int ret = util::run_command("rm -rf /app/model && mkdir /app/model");
+    if (ret != 0)
+    {
+        util::log_error("rm && mkdir failed with " + ret);
+    }
 
     this->modelfiles = {"/app/data/ssd_mobilenet_v2_coco.blob"};
     this->labelfpath = "/app/data/labels.txt";
@@ -92,12 +92,12 @@ void SSDModel::run(cv::GStreamingCompiled *pipeline)
         if (this->inputsource == "uvc" || this->inputsource.rfind(this->VIDEO_PREFIX, 0) == 0 ) 
         {
             // Build the camera pipeline with G-API
-            *pipeline = this->compile_cv_graph_uvc();
+            *pipeline = this->compile_cv_graph_uvc_video();
             util::log_info("starting the pipeline with " + this->inputsource);
             pipeline->start();
 
             // Pull data through the pipeline
-            ran_out_naturally = this->pull_data_uvc(*pipeline);
+            ran_out_naturally = this->pull_data_uvc_video(*pipeline);
         } 
         else 
         {
@@ -177,11 +177,10 @@ cv::GStreamingCompiled SSDModel::compile_cv_graph() const
     return pipeline;
 }
 
-cv::GStreamingCompiled SSDModel::compile_cv_graph_uvc() const
+cv::GStreamingCompiled SSDModel::compile_cv_graph_uvc_video() const
 {
     // The input node of the G-API pipeline. This will be filled in, one frame at time.
     cv::GMat in;
-
     cv::GMat bgr = in;
 
     // Here's where we actually run our neural network. It runs on the VPU.

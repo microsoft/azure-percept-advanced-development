@@ -47,7 +47,7 @@ const std::string keys =
 "{ s size      | native | Output video resolution. Possible values: native, 1080p, 720p }"
 "{ t timealign | false  | Align the RTSP result frames with their corresponding neural network outputs in time }"
 "{ fps         | 10     | Output video frame rate. }"
-"{ i input     |        | Source of input frames. Inbox MIPI camera attached to Eye SoM by default. Possible value: uvc }";
+"{ i input     |        | Source of input frames. Inbox MIPI camera attached to Eye SoM by default. Possible value: uvc, video:<video path in the container> }";
 
 const std::map<rtsp::Resolution, cv::gapi::mx::Camera::Mode> modes = {
     {rtsp::Resolution::NATIVE, cv::gapi::mx::Camera::MODE_NATIVE},
@@ -378,7 +378,6 @@ int main(int argc, char** argv)
         delete the_model;
         the_model = nullptr;
 
-        util::log_info("inputsource = " + inputsource);
         // Load a new model
         load_new_model(mvcmd, inputsource, videofile, resolution_camera_mode, quit_on_failure);
 

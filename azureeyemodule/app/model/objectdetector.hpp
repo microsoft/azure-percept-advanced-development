@@ -93,11 +93,10 @@ protected:
                                          const cv::optional<std::vector<float>> &out_confidences, const cv::optional<cv::Size> &out_size,
                                          std::vector<cv::Rect> &last_boxes, std::vector<int> &last_labels, std::vector<float> &last_confidences);
 
-
     /** Pull data through the given pipeline. Returns true if we run out of frames, false if we have been interrupted. Otherwise runs forever. */
     virtual bool pull_data(cv::GStreamingCompiled &pipeline);
 
-    virtual bool pull_data_uvc(cv::GStreamingCompiled &pipeline);
+    virtual bool pull_data_uvc_video(cv::GStreamingCompiled &pipeline);
 
 private:
     /** Marks up the given rgb with the given labels, bounding boxes, and confidences. */

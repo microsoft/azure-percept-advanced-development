@@ -76,6 +76,10 @@ RUN cd /app && \
           -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
           .. && \
     make -j $(nproc) && \
-    mv /app/build/inference /app/inference
+    mv /app/build/inference /app/inference && \
+    rm -rf /app/build && \
+    rm -rf /app/*.c* && \
+    rm -rf /app/*.h* && \
+    rm -rf /app/*.txt
 
 CMD ["/bin/bash", "-c", "./app/inference"]
