@@ -28,6 +28,7 @@ class ObjectDetector : public AzureEyeModel
 public:
     ObjectDetector(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution);
     virtual ~ObjectDetector();
+    const std::string VIDEO_PREFIX = "video:";
 
 protected:
     /** Path to the label file. */

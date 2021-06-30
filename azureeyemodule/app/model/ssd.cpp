@@ -89,11 +89,11 @@ void SSDModel::run(cv::GStreamingCompiled *pipeline)
         this->log_parameters();
         bool ran_out_naturally;
 
-        if (this->inputsource == "uvc") 
+        if (this->inputsource == "uvc" || this->inputsource.rfind(this->VIDEO_PREFIX, 0) == 0 ) 
         {
             // Build the camera pipeline with G-API
             *pipeline = this->compile_cv_graph_uvc();
-            util::log_info("starting the pipeline with uvc camera...");
+            util::log_info("starting the pipeline with " + this->inputsource);
             pipeline->start();
 
             // Pull data through the pipeline
@@ -210,7 +210,24 @@ cv::GStreamingCompiled SSDModel::compile_cv_graph_uvc() const
     auto kernels = cv::gapi::combine(cv::gapi::mx::kernels(), cv::gapi::kernels<custom::OCVBBoxes, cv::gapi::streaming::GOCVParseSSDWithConf>());
     // Compile the graph in streamnig mode; set all the parameters; feed the firmware file into the VPU.
     auto pipeline = graph.compileStreaming(cv::compile_args(networks, kernels, cv::gapi::mx::mvcmdFile{ this->mvcmd }));
-    pipeline.setSource<cv::gapi::wip::GCaptureSource>(0); // default: video0
+
+    //if find VIDEO_PREFIX from inputsource, continue with a video file
+    if (this->inputsource.rfind(this->VIDEO_PREFIX, 0) == 0) 
+    {
+        std::string video_file_path = this->inputsource.substr(this->VIDEO_PREFIX.size(), this->inputsource.size());
+        util::log_info("Input source is a video file with path: " + video_file_path);
+        if (!check_file_exist(video_file_path))
+            {
+                util::log_error("The video file doesn't exist.");
+            }
+        pipeline.setSource<cv::gapi::wip::GCaptureSource>(video_file_path);
+    } 
+    //else continue as uvc camera, video0 as default value
+    else 
+    {
+        util::log_info("Input source is a uvc camera (video0 as default value)");
+        pipeline.setSource<cv::gapi::wip::GCaptureSource>(0);
+    }
 
     return pipeline;
 }
