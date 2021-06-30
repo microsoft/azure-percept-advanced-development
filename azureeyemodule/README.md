@@ -864,6 +864,14 @@ Validated on Logitech B525 HD, 720P, 30 fps.
           --fps=30 specifies the input fps from the uvc camera.
 1. Once it's started, you will see the inference results and the video stream with overlay bounding boxes and labels.
 
+---
+**NOTE**
+
+UVC camera is only enabled in object detection model as an example.
+Please follow the sample codes to enable more models if needed.
+
+---
+
 ### Using pre-recorded video file as input source
 
 Pre-recorded video file as input source in also supported. Supported codec is H.264 and file format includes but not limited to *.mp4, *.mkv.
