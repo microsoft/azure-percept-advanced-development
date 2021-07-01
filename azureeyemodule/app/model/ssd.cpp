@@ -46,17 +46,6 @@ namespace model {
 /** An SSD network takes a single input and outputs a single output (which we will parse into boxes, labels, and confidences) */
 G_API_NET(SSDNetwork, <cv::GMat(cv::GMat)>, "ssd-network");
 
-bool check_file_exist(std::string filepath)
-{
-   std::ifstream ifile;
-   ifile.open(filepath);
-   if(ifile) {
-      return true;
-   } else {
-      return false;
-   }
-}
-
 SSDModel::SSDModel(const std::string &labelfpath, const std::vector<std::string> &modelfpaths, const std::string &mvcmd, const std::string inputsource, const std::string &videofile, const cv::gapi::mx::Camera::Mode &resolution)
     : ObjectDetector{ labelfpath, modelfpaths, mvcmd, videofile, resolution }
 {
@@ -89,7 +78,7 @@ void SSDModel::run(cv::GStreamingCompiled *pipeline)
         this->log_parameters();
         bool ran_out_naturally;
 
-        if (this->inputsource == "uvc" || this->inputsource.rfind(this->VIDEO_PREFIX, 0) == 0 ) 
+        if ((this->inputsource == "uvc") || (this->inputsource.rfind(this->VIDEO_PREFIX, 0) == 0)) 
         {
             // Build the camera pipeline with G-API
             *pipeline = this->compile_cv_graph_uvc_video();
@@ -215,10 +204,10 @@ cv::GStreamingCompiled SSDModel::compile_cv_graph_uvc_video() const
     {
         std::string video_file_path = this->inputsource.substr(this->VIDEO_PREFIX.size(), this->inputsource.size());
         util::log_info("Input source is a video file with path: " + video_file_path);
-        if (!check_file_exist(video_file_path))
-            {
-                util::log_error("The video file doesn't exist.");
-            }
+        if (!util::file_exists(video_file_path))
+        {
+            util::log_error("The video file doesn't exist.");
+        }
         pipeline.setSource<cv::gapi::wip::GCaptureSource>(video_file_path);
     } 
     //else continue as uvc camera, video0 as default value

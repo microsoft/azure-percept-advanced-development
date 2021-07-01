@@ -47,7 +47,7 @@ bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
     cv::optional<int64_t> out_h264_seqno;
     cv::optional<int64_t> out_h264_ts;
 
-    // These are th enodes from the neural network inference path.
+    // These are the nodes from the neural network inference path.
     cv::optional<cv::Mat> out_nn;
     cv::optional<int64_t> out_nn_ts;
     cv::optional<int64_t> out_nn_seqno;
@@ -96,7 +96,7 @@ bool ObjectDetector::pull_data_uvc_video(cv::GStreamingCompiled &pipeline)
     // These are the nodes from the raw camera frame path.
     cv::optional<cv::Mat> out_bgr;
 
-    // These are th enodes from the neural network inference path.
+    // These are the nodes from the neural network inference path.
     cv::optional<std::vector<cv::Rect>> out_boxes;
     cv::optional<std::vector<int>> out_labels;
     cv::optional<std::vector<float>> out_confidences;
