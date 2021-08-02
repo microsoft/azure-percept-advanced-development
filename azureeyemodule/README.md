@@ -141,6 +141,7 @@ These are the allowed values for this IoT Module's twin:
 * `RawStream`: Boolean. Enables/disables streaming the raw camera feed.
 * `ResultStream`: Boolean. Enables/disables streaming the result feed, which will be the raw camera feed plus
   any markups done by the neural network post-processing.
+* `H264Stream`: Boolean. Enables/disables the H.264-encoded raw camera feed.
 * `StreamFPS`: Integer. The desired frames per second of the camera feed.
 * `StreamResolution`: String. Must be one of `native`, `1080p`, or `720p`. Sets the resolution of the camera feed.
 * `TelemetryIntervalNeuralNetworkMs`: Integer. Determines how often to send messages from the neural network. Sends a message at most once every this

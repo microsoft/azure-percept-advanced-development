@@ -3,6 +3,7 @@
 
 // Standard library includes
 #include <dirent.h>
+#include <errno.h>
 #include <string>
 #include <thread>
 
@@ -57,7 +58,7 @@ static void upload_snapshot_directory(const secure::SecureAIParams &security_par
     d_data = opendir(snapshot_dpath.c_str());
     if (d_data == NULL)
     {
-        util::log_error("Could not open snapshot directory for retrain loop data upload.");
+        util::log_error("Could not open snapshot directory for retrain loop data upload. Errno: " + std::to_string(errno));
         return;
     }
 
