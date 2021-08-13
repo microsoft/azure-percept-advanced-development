@@ -47,7 +47,9 @@ const std::string keys =
 "{ s size      | native | Output video resolution. Possible values: native, 1080p, 720p }"
 "{ t timealign | false  | Align the RTSP result frames with their corresponding neural network outputs in time }"
 "{ fps         | 10     | Output video frame rate. }"
-"{ i input     |        | Source of input frames. Inbox MIPI camera attached to Eye SoM by default. Possible value: uvc, video:<video path in the container> }";
+"{ i input     |        | Source of input frames. Inbox MIPI camera attached to Eye SoM by default. Possible value: uvc}";
+// video file is not ready in this build yet.
+//"{ i input     |        | Source of input frames. Inbox MIPI camera attached to Eye SoM by default. Possible value: uvc, video:<video path in the container> }";
 
 const std::map<rtsp::Resolution, cv::gapi::mx::Camera::Mode> modes = {
     {rtsp::Resolution::NATIVE, cv::gapi::mx::Camera::MODE_NATIVE},
