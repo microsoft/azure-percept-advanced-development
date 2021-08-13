@@ -846,37 +846,6 @@ Please follow the sample codes to enable more models if needed.
 
 ---
 
-### Using pre-recorded video file as input source
-
-Pre-recorded video file as input source in also supported. Supported codec is H.264 and file format includes but not limited to *.mp4, *.mkv.
-1. Assume the docker image was ready.
-1. Prepare an H.264 pre-recorded video file and store in somewhere you want on the host, for example, /video/homes_00425.mkv.
-   You can download a sample video from https://abhilashavastorage.blob.core.windows.net/video/homes_00425.mkv
-1. Now run the Docker container like this:
-    ```
-    docker run --rm \
-               -v /dev/bus/usb:/dev/bus/usb \
-               -v /video:/video \
-               -it \
-               --device-cgroup-rule='c 189:* rmw' \
-               -p 8554:8554 \
-               <the docker image you just built> \
-               /app/inference --input=video:/video/homes_00425.mkv --fps=30
-    ``` 
-    where
-    * -v /video:/video is to bind the /video folder on your host to the folder with same name in container.
-    * --input=video:[video file path] is to specify the pre-recorded video file path in the container
-    * --fps=30 is the input video file fps.
----
-**Known issue**
-
-Hardware codec is not yet enabled in Mariner OS.
-When using the pre-recorded video as input source, it will first decode to raw frame before sending to the inference pipeline.
-And since the hardware codec is not yet enabled, it will use CPU to decode.
-Thus the overall performance is constrained by the CPU decoding process.
-As a result, even we specify the input fps as 30, you will see that the output video stream is only around 20fps.
-
----
 
 ## The Dockerfile
 
