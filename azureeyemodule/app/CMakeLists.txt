@@ -29,6 +29,7 @@ find_library(ORT_LIB onnxruntime)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GSTREAMER gstreamer-1.0>=1.14 REQUIRED)
 pkg_check_modules(RTSP gstreamer-rtsp-server-1.0 REQUIRED)
+pkg_check_modules(GSTREAMER_APP gstreamer-app-1.0>=1.14 REQUIRED)
 
 # Add USE_EDGE_MODULES flags to the C and CXX flags for the compiler
 # (This is for Azure IoT C SDK)
@@ -94,6 +95,7 @@ target_link_libraries(${APP_NAME}
     ${OpenCV_LIBS}
     ${RTSP_LIBRARIES}
     ${GSTREAMER_LIBRARIES}
+    ${GSTREAMER_APP_LIBRARIES}
     ${ORT_LIB}
     gobject-2.0
     glib-2.0

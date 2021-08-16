@@ -294,6 +294,15 @@ static void parse_streams(JSON_Object *root_object)
         rtsp::set_stream_params(rtsp::StreamType::RESULT, (bool)json_object_dotget_boolean(root_object, "ResultStream"));
     }
 
+    if (json_object_dotget_value(root_object, "desired.H264Stream") != nullptr)
+    {
+        rtsp::set_stream_params(rtsp::StreamType::H264_RAW, (bool)json_object_dotget_boolean(root_object, "desired.H264Stream"));
+    }
+    if (json_object_dotget_value(root_object, "H264Stream") != nullptr)
+    {
+        rtsp::set_stream_params(rtsp::StreamType::H264_RAW, (bool)json_object_dotget_boolean(root_object, "H264Stream"));
+    }
+
     if (json_object_dotget_value(root_object, "desired.StreamFPS") != nullptr)
     {
         auto fps = json_object_dotget_number(root_object, "desired.StreamFPS");

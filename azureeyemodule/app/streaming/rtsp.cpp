@@ -10,6 +10,7 @@
 
 // Third party includes
 #include <gst/gst.h>
+#include <gst/app/gstappsrc.h>
 #include <gst/rtsp-server/rtsp-server.h>
 #include <opencv2/core/utility.hpp>
 #include <opencv2/imgproc.hpp>
@@ -178,16 +179,28 @@ FrameBuffer result_buffer(QUEUE_SIZE, DEFAULT_FPS);
 /** This is the H.264 frame we feed out whenever we need more for the H.264 stream. Resolution is taken care of by the AI model. */
 static std::queue<H264> h264_buffer;
 
+/** The H.264 appsrc pipeline. */
+static GstElement *h264_pipeline_stub = nullptr;
+
+/** The name of the proxy sink for H.264. */
+static const std::string h264_proxy_sink_name = "h264_proxy_sink0";
+
+/** The name of the proxy source for H.264. */
+static const std::string h264_proxy_src_name = "h264_proxy_src0";
+
+/** Flag to control the state of the H.264 pipeline. */
+static bool h264_pipeline_go = false;
+
 
 /** Tell Gstreamer to read the media clock and use it as-is as the NTP timestamp. */
 static gboolean custom_setup_rtpbin(GstRTSPMedia *media, GstElement *rtpbin)
 {
-    g_object_set(rtpbin, "ntp-time-source", 3 /* clock-time */, NULL);
+    g_object_set(rtpbin, "ntp-time-source", 3 /* clock-time */, nullptr);
 
     // If clock sync seems off, uncommenting the below line might help. This will tell the RTP Manager to set the NTP
     // timestamp in the RTCP SR to the "capture" time rather than the "send" time. This might help when there is a delay
     // between the time the frame was captured and when it is actually sent.
-    // g_object_set(rtpbin, "rtcp-sync-send-time", FALSE, NULL);
+    // g_object_set(rtpbin, "rtcp-sync-send-time", FALSE, nullptr);
 
     return TRUE;
 }
@@ -254,7 +267,7 @@ static void disconnect(const StreamType &stream_type)
     g_object_unref(mounts);
 
     // Remove existing clients
-    gst_rtsp_server_client_filter(server, client_filter, NULL);
+    gst_rtsp_server_client_filter(server, client_filter, nullptr);
 }
 
 /**
@@ -288,8 +301,7 @@ static void need_data_callback(GstElement *appsrc, guint unused, StreamParameter
     // Feed out the buffer
     cv::Mat frame = get_frame(params->name);
     guint size = frame.size().width * frame.size().height * frame.channels();
-    GstBuffer *buffer = gst_buffer_new_allocate(NULL, size, NULL);
-    gst_buffer_fill(buffer, 0, frame.data, size);
+    GstBuffer *buffer = gst_buffer_new_wrapped_full(GST_MEMORY_FLAG_READONLY, frame.data, size, 0, size, nullptr, nullptr);
 
     // Increment the timestamp.
     GST_BUFFER_PTS(buffer) = params->timestamp;
@@ -304,51 +316,18 @@ static void need_data_callback(GstElement *appsrc, guint unused, StreamParameter
     gst_buffer_unref(buffer);
 }
 
-/** Callback to call whenever our app source needs another buffer to feed out (H.264 version). */
+/** Callback to call whenever our appsrc needs another frame. */
 static void need_data_callback_h264(GstElement *appsrc, guint unused, StreamParametersH264 *params)
 {
-    // Turn our H.264 frame into a Gstreamer buffer
-    H264 frame = h264_buffer.front();
-    guint size = frame.data.size();
-    GstBuffer *buffer = gst_buffer_new_allocate(NULL, size, NULL);
-    gst_buffer_fill(buffer, 0, frame.data.data(), size);
+    // We can start feeding data in.
+    h264_pipeline_go = true;
+}
 
-    if (!params->first_frame_processed)
-    {
-        GstClockTime internal_time = gst_clock_get_internal_time(params->factory_clock);
-
-        // Convert the video frame timestamp that is in nanoseconds from January 1st, 1970 to NTP format,
-        // which counts from January 1st, 1900.
-        GstClockTime ntp_time = frame.timestamp + (2208988800LL * GST_SECOND);
-
-        // Recalibrate the clock so that the current time is the same as the NTP timestamp of the first video frame
-        gst_clock_set_calibration(params->factory_clock, internal_time, ntp_time, 1, 1);
-
-        // Remember the timestamp of the first frame as this will be used to zero-adjust the PTS
-        params->base_timestamp = frame.timestamp;
-        params->first_frame_processed = TRUE;
-    }
-
-    // Use the provided timestamp and compute an estimated duration based on the fixed frame rate.
-    // The PTS is adjusted to make the first frame have a PTS of zero.
-    // The RTCP sender reports will use params->factory_clock for the NTP timestamp.
-    GST_BUFFER_PTS(buffer) = frame.timestamp - params->base_timestamp; // TODO: Am I convinced that wrap-around will never mess us up here?
-    GST_BUFFER_DURATION(buffer) = gst_util_uint64_scale_int(1, GST_SECOND, params->params.fps);
-
-    // Push the H.264 frame into the pipeline
-    GstFlowReturn ret;
-    g_signal_emit_by_name(appsrc, "push-buffer", buffer, &ret);
-    if (ret != GST_FLOW_OK)
-    {
-        util::log_error("Got an unexpected return value from pushing the h.264 frame to Gstreamer pipeline: " + std::to_string(ret));
-    }
-
-    // If we have any more frames behind this one, let's pop this one.
-    // Otherwise, let's keep sending this one until we get another.
-    if (h264_buffer.size() > 1)
-    {
-        h264_buffer.pop();
-    }
+static void enough_data_callback_h264(GstElement *appsrc, StreamParametersH264 *params)
+{
+    // Stop sending data into the H.264 pipeline. This implementation assumes that we can only ever have one H.264
+    // client connected at a time (which I think has always been the case anyway...)
+    h264_pipeline_go = false;
 }
 
 /** Called when a new media pipeline is constructed. As such, operates in callback context. Make sure it is re-entrant! */
@@ -376,8 +355,8 @@ static void configure_stream(GstRTSPMediaFactory *factory, GstRTSPMedia *media, 
             "width",     G_TYPE_INT,        width,
             "height",    G_TYPE_INT,        height,
             "framerate", GST_TYPE_FRACTION, params->fps, 1,
-            NULL),
-        NULL);
+            nullptr),
+        nullptr);
 
     // Need to create a new context for each new stream's need-data callback. Otherwise you can only ever have one client ever.
     auto new_context = g_new0(StreamParameters, 1);
@@ -389,7 +368,7 @@ static void configure_stream(GstRTSPMediaFactory *factory, GstRTSPMedia *media, 
     new_context->timestamp = 0;
     new_context->uri = params->uri;
     new_context->server = params->server;
-    g_object_set_data_full(G_OBJECT(media_element), "my-extra-data", new_context, (GDestroyNotify)g_free);
+    g_object_set_data_full(G_OBJECT(media_element), "extra-data", new_context, (GDestroyNotify)g_free);
 
     // We call this callback whenever we need a new buffer to feed out.
     g_signal_connect(appsrc, "need-data", (GCallback)need_data_callback, new_context);
@@ -402,51 +381,47 @@ static void configure_stream(GstRTSPMediaFactory *factory, GstRTSPMedia *media, 
 /** Called when a new media pipeline is constructed. As such, operates in callback context. Make sure it is re-entrant! */
 static void configure_stream_h264(GstRTSPMediaFactory *factory, GstRTSPMedia *media, gpointer user_data)
 {
+    // Hook up the two ends of the pipeline
+    GstElement *media_element = gst_rtsp_media_get_element(media);
+    GstElement *proxysrc = gst_bin_get_by_name_recurse_up(GST_BIN(media_element), h264_proxy_src_name.c_str());
+    GstElement *proxysink = gst_bin_get_by_name_recurse_up(GST_BIN(h264_pipeline_stub), h264_proxy_sink_name.c_str());
+    g_object_set(proxysrc, "proxysink", proxysink, nullptr);
+
+    // Set the pipeline to PLAY
+    GstStateChangeReturn ret = gst_element_set_state(h264_pipeline_stub, GST_STATE_PLAYING);
+    if (ret == GST_STATE_CHANGE_FAILURE)
+    {
+        util::log_error("Could not start playing the H.264 streaming source pipeline. H.264 stream will not be available.");
+        return;
+    }
+
+    // Set up the pipeline to start accepting data
+    h264_pipeline_go = true;
+
     // Get our parameters from the user data
     StreamParameters *params = (StreamParameters *)user_data;
 
-    // Get the appsrc for this factory
-    GstElement *media_element = gst_rtsp_media_get_element(media);
-    GstElement *appsrc = gst_bin_get_by_name_recurse_up(GST_BIN(media_element), params->name.c_str());
-
-    // Tell appsrc that we will be dealing with a timestamped buffer
-    gst_util_set_object_arg(G_OBJECT(appsrc), "format", "time");
-
-    // Determine the width and height of the stream from its resolution.
-    int width;
-    int height;
-    std::tie(height, width) = get_height_and_width(h264_context.resolution);
-
-    // Configure the video's caps (capabilities)
-    g_object_set(G_OBJECT(appsrc), "caps",
-        gst_caps_new_simple("video/x-h264",
-            "stream-format",    G_TYPE_STRING,     "byte-stream",
-            "width",            G_TYPE_INT,        width,
-            "height",           G_TYPE_INT,        height,
-            "framerate",        GST_TYPE_FRACTION, params->fps, 1,
-            NULL),
-        NULL);
-
     // Need to create a new context for each new stream's need-data callback. Otherwise you can only ever have one client ever.
-    auto new_context = g_new0(StreamParametersH264, 1);
-    new_context->params.enabled = params->enabled;
-    new_context->params.resolution = params->resolution;
-    new_context->params.fps = params->fps;
-    new_context->params.stream_type = params->stream_type;
-    new_context->params.name = params->name;
-    new_context->params.uri = params->uri;
-    new_context->params.server = params->server;
-    new_context->first_frame_processed = FALSE;
-    new_context->base_timestamp = 0;
-    new_context->factory_clock = gst_rtsp_media_factory_get_clock(factory);
-    g_object_set_data_full(G_OBJECT(media_element), "my-extra-data", new_context, (GDestroyNotify)g_free);
+    std::vector<StreamParametersH264 *> contexts = {g_new0(StreamParametersH264, 1), g_new0(StreamParametersH264, 1)};
+    for (auto &new_context : contexts)
+    {
+        new_context->params.enabled = params->enabled;
+        new_context->params.resolution = params->resolution;
+        new_context->params.fps = params->fps;
+        new_context->params.stream_type = params->stream_type;
+        new_context->params.name = params->name;
+        new_context->params.uri = params->uri;
+        new_context->params.server = params->server;
+        new_context->first_frame_processed = FALSE;
+        new_context->base_timestamp = 0;
+        new_context->factory_clock = gst_rtsp_media_factory_get_clock(factory);
+        g_object_set_data_full(G_OBJECT(media_element), "extra-data", new_context, (GDestroyNotify)g_free);
+    }
 
-    // We call this callback whenever we need a new buffer to feed out.
-    g_signal_connect(appsrc, "need-data", (GCallback)need_data_callback_h264, new_context);
-
-    // Clean up after ourselves
-    gst_object_unref(appsrc);
-    gst_object_unref(media_element);
+    // Get the appsrc for this factory and hook up its need-data and enough-data callbacks.
+    GstElement *appsrc = gst_bin_get_by_name_recurse_up(GST_BIN(h264_pipeline_stub), params->name.c_str());
+    g_signal_connect(appsrc, "need-data", (GCallback)need_data_callback_h264, contexts[0]);
+    g_signal_connect(appsrc, "enough-data", (GCallback)enough_data_callback_h264, contexts[1]);
 }
 
 /** Create and configure an RTSP stream factory. Factories are used to create GStreamer pipelines in response to client connections. */
@@ -471,17 +446,36 @@ static void configure_rtsp_stream_factory(GstRTSPMediaFactory *factory, const st
 static void configure_rtsp_stream_factory_h264(GstRTSPMediaFactory *factory, const std::string &appsrc_name, GstRTSPLowerTrans protocol, void *configure_stream_arg)
 {
     // This is the GStreamer pipeline that will be created whenever someone connects to this factory's endpoint.
-    auto gstreamer_cmd = "( appsrc name=" + appsrc_name + " ! h264parse ! rtph264pay name=pay0 pt=96 )";
+    // The H.264 pipeline is a little different from the other ones. It operates in a push mode rather than a pull mode.
+    // This means that we use a pipeline like this:
+    // appsrc -> proxysink => proxysrc -> h264 stuff -> RTSP stream
+    // The appsrc -> proxysink part of the pipeline is always set up and ready to accept more H.264 frames from the
+    // application, but the proxysrc -> h264 stuff -> RTSP stream part of the pipeline is not. It gets created and started
+    // whenever a client connects to us looking for the H.264 stream. When that happens, we construct this half of the pipeline,
+    // start it up, and let the appsrc know that it can start pushing buffers into the pipeline now.
+    int width;
+    int height;
+    std::tie(height, width) = get_height_and_width(h264_context.resolution);
+    int fps = h264_context.fps;
+    auto caps = "video/x-h264,stream-format=(string)byte-stream,width=(int)" + std::to_string(width) + ",height=(int)" + std::to_string(height) +
+                ",framerate=(fraction)" + std::to_string(fps) + "/1,alignment=(string)au";
+    std::string gstreamer_cmd = "";
+    gstreamer_cmd += "( proxysrc name=" + h264_proxy_src_name;  // Give it a name so that we can hook up the corresponding proxysink to it
+    gstreamer_cmd += " ! " + caps;                              // Need to explicitly put the caps in, otherwise proxysrc doesn't know what's what
+    gstreamer_cmd += " ! h264parse";                            // Interpret the bytestream buffers as H.264 frames
+    gstreamer_cmd += " ! rtph264pay name=pay0 pt=96";           // Encode H.264-encoded video into RTSP packets
+    gstreamer_cmd += " )";
     gst_rtsp_media_factory_set_launch(factory, gstreamer_cmd.c_str());
 
-    // Use the appropriate protocol (TCP or UDP)
+    // Use the appropriate protocol (TCP or UDP). We use TCP for AVA integration, though GStreamer complains that it is not
+    // supported. Who knows?
     gst_rtsp_media_factory_set_protocols(factory, protocol);
 
     // Use our custom class, CustomClockRTSPMedia, rather than the regular GstRTSPMedia object.
     gst_rtsp_media_factory_set_media_gtype(factory, CUSTOM_CLOCK_RTSP_MEDIA_TYPE);
 
     // Create a system clock to be used by this factory only.
-    GstClock *factory_system_clock = reinterpret_cast<GstClock *>(g_object_new(gst_system_clock_get_type(), NULL));
+    GstClock *factory_system_clock = reinterpret_cast<GstClock *>(g_object_new(gst_system_clock_get_type(), nullptr));
 
     // Tell this factory to use the specified clock as the media clock. We will sync this clock
     // to the UTC time once we process our first packet.
@@ -557,19 +551,65 @@ Resolution get_resolution(const StreamType &type)
     }
 }
 
+/** Construct a simple appsrc -> proxysink pipeline. The H.264 RTSP server is configured to read from a proxysrc attached to this. */
+static void construct_stream_stub_h264()
+{
+    // Launch the simple little pipeline
+    GError *err = nullptr;
+    std::string launch_cmd = "";
+    launch_cmd += "appsrc name=" + h264_context.name;
+    launch_cmd += " ! proxysink name=" + h264_proxy_sink_name;
+    h264_pipeline_stub = gst_parse_launch(launch_cmd.c_str(), &err);
+    if (err != nullptr)
+    {
+        util::log_error("Error in launching the H.264 streaming stub. Error code: " + std::to_string(err->code) + "; Error message: " + err->message);
+    }
+
+    // Check for fatal errors
+    if (h264_pipeline_stub == nullptr)
+    {
+        util::log_error("Could not launch the H.264 streaming pipeline. H.264 stream will not be available.");
+        return;
+    }
+
+    // Set the caps for the appsrc
+    GstElement *appsrc = gst_bin_get_by_name_recurse_up(GST_BIN(h264_pipeline_stub), h264_context.name.c_str());
+    int width;
+    int height;
+    std::tie(height, width) = get_height_and_width(h264_context.resolution);
+    auto fps = h264_context.fps;
+    g_object_set(G_OBJECT(appsrc), "caps",
+        gst_caps_new_simple("video/x-h264",
+            "stream-format",    G_TYPE_STRING,     "byte-stream",
+            "width",            G_TYPE_INT,        width,
+            "height",           G_TYPE_INT,        height,
+            "framerate",        GST_TYPE_FRACTION, fps, 1,
+            nullptr),
+        nullptr);
+
+    // Make sure appsrc never blocks the main thread (which is the thread that pushes data to it)
+    g_object_set(G_OBJECT(appsrc), "block", false, nullptr);
+
+    // Ensure that we emit signals (we will hook up the signals when we connect a client to the pipeline)
+    g_object_set(G_OBJECT(appsrc), "emit-signals", true, nullptr);
+
+    // Clean up after ourselves
+    gst_object_unref(appsrc);
+}
+
 void* gst_rtsp_server_thread(void *unused)
 {
     // Initialize GStreamer and check if it failed.
     GError *err;
-    gboolean success = gst_init_check(NULL, NULL, &err);
+    gboolean success = gst_init_check(nullptr, nullptr, &err);
     if (!success)
     {
-        util::log_error("Could not initialize GStreamer: " + ((err == NULL) ? "No info." : std::to_string(err->code) + ": " + std::string(err->message)));
-        return NULL;
+        util::log_error("Could not initialize GStreamer: " + ((err == nullptr) ? "No info." : std::to_string(err->code) + ": " + std::string(err->message)));
+        return nullptr;
     }
 
     // Create the main GLib loop, using the default context
-    GMainLoop *loop = g_main_loop_new(NULL, FALSE);
+    GMainLoop *loop = g_main_loop_new(nullptr, FALSE);
 
     // Create the RTSP server and configure it.
     // An RTSP server manages four objects under the hood: GstRTSPSessionPool, which keeps track of all the sessions
@@ -592,12 +632,15 @@ void* gst_rtsp_server_thread(void *unused)
     // Set up the callback to clean up disconnected clients periodically
     g_timeout_add_seconds(60, (GSourceFunc)clean_up_expired_sessions, server);
 
+    // H.264 is handled a little differently. We need another pipeline set up for it along with the factory.
+    construct_stream_stub_h264();
+
     // Start the GLib main loop. The RTSP server hooks into the main loop's default context and runs as part of it.
-    gst_rtsp_server_attach(server, NULL);
+    gst_rtsp_server_attach(server, nullptr);
     g_main_loop_run(loop);
 
     // Should not return.
-    return NULL;
+    return nullptr;
 }
 
 static void add_bunch_of_frames(const std::vector<cv::Mat> &mats, FrameBuffer &buffer)
@@ -649,6 +692,25 @@ static void add_bunch_of_frames(const std::vector<cv::Mat> &mats, FrameBuffer &b
     }
 }
 
+/** Disconnect the H.264 pipeline's appsrc -> proxysink stub. */
+static void disconnect_h264_pipeline()
+{
+    auto appsrc = gst_bin_get_by_name_recurse_up(GST_BIN(h264_pipeline_stub), h264_context.name.c_str());
+    GstFlowReturn ret = gst_app_src_end_of_stream(GST_APP_SRC(appsrc));
+    if (ret != GST_FLOW_OK)
+    {
+        util::log_error("Attempting to disconnect from H.264 stream even though it is not connected.");
+        return;
+    }
+
+    // Remove the pipeline completely
+    gst_element_set_state(h264_pipeline_stub, GST_STATE_NULL);
+    gst_object_unref(h264_pipeline_stub);
+
+    // Create the pipeline again to get it ready for the next client
+    construct_stream_stub_h264();
+}
+
 void update_data_raw(const cv::Mat &mat)
 {
     update_data_raw(std::vector<cv::Mat>{mat});
@@ -671,14 +733,85 @@ void update_data_result(const std::vector<cv::Mat> &mats)
 
 void update_data_h264(const H264 &frame)
 {
-    // Make sure we don't leak memory or get super far behind on the frames
-    // if we are consuming them slower than we are producing them.
-    while (h264_buffer.size() > (size_t)(2 * h264_context.fps))
+    // On the very first frame that we pass to the server, we will need to figure
+    // out a timestamp offset that we can apply to all future frames.
+    // These variables are for that purpose.
+    static bool first_frame_processed = false;
+    static GstClockTime base_timestamp = 0;
+
+    // If we failed to set up the stub pipeline, don't bother trying to push to it.
+    if (h264_pipeline_stub == nullptr)
     {
-        h264_buffer.pop();
+        return;
     }
 
-    h264_buffer.push(frame);
+    if (!h264_pipeline_go)
+    {
+        // Nobody's listening. Don't bother pushing an H.264 buffer.
+        return;
+    }
+
+    // Ideally, we would have a callback for when clients disconnect, but I cannot figure out
+    // how to get that to happen.
+    // If nobody is viewing the RTSP feed, don't bother pushing out any GStreamer frames.
+    auto filterfunc = [](GstRTSPServer *server, GstRTSPClient *client, gpointer user_data){ return GST_RTSP_FILTER_REF; };
+    GList *current_connections = gst_rtsp_server_client_filter(h264_context.server, filterfunc, nullptr);
+    if (current_connections == nullptr) // when a GList is empty, it is nullptr
+    {
+        util::log_info("No clients connected. Disconnecting the H.264 pipeline.");
+
+        // There are no clients.
+        h264_pipeline_go = false;
+
+        // Now disconnect the pipeline.
+        disconnect_h264_pipeline();
+        return;
+    }
+    g_list_free(current_connections);
+
+    // Turn our frame into a Gst Buffer
+    guint size = frame.data.size();
+    GstBuffer *buffer = gst_buffer_new_allocate(nullptr, size, nullptr);
+    gst_buffer_fill(buffer, 0, frame.data.data(), size);
+
+    if (!first_frame_processed)
+    {
+        // If this is the first time we have provided a frame, we need to make sure that
+        // we set up the special timestamps for H.264.
+        GstClock *factory_clock = gst_rtsp_media_factory_get_clock(h264_context.factory);
+        GstClockTime internal_time = gst_clock_get_internal_time(factory_clock);
+
+        // Convert the video frame timestamp that is in nanoseconds from January 1st, 1970 to NTP format,
+        // which counts from January 1st, 1900.
+        GstClockTime ntp_time = frame.timestamp + (2208988800LL * GST_SECOND);
+
+        // Recalibrate the clock so that the current time is the same as the NTP timestamp of the first video frame
+        gst_clock_set_calibration(factory_clock, internal_time, ntp_time, 1, 1);
+
+        // Remember the timestamp of the first frame as this will be used to zero-adjust the PTS
+        base_timestamp = frame.timestamp;
+        first_frame_processed = true;
+    }
+
+    // Use the provided timestamp and compute an estimated duration based on the fixed frame rate.
+    // The PTS is adjusted to make the first frame have a PTS of zero.
+    // The RTCP sender reports will use params->factory_clock for the NTP timestamp.
+    GST_BUFFER_PTS(buffer) = frame.timestamp - base_timestamp; // TODO: Am I convinced that wrap-around will never mess us up here?
+    GST_BUFFER_DURATION(buffer) = gst_util_uint64_scale_int(1, GST_SECOND, h264_context.fps);
+
+    // Get the appsrc for the H.264 factory
+    GstElement *appsrc = gst_bin_get_by_name_recurse_up(GST_BIN(h264_pipeline_stub), h264_context.name.c_str());
+
+    // Push the H.264 frame into the pipeline
+    GstFlowReturn ret;
+    g_signal_emit_by_name(appsrc, "push-buffer", buffer, &ret);
+    if (ret != GST_FLOW_OK)
+    {
+        util::log_error("Got an unexpected return value from pushing the h.264 frame to Gstreamer pipeline: " + std::to_string(ret));
+    }
+
+    // Unref the buffer to prevent leaky memory
+    gst_buffer_unref(buffer);
 }
 
 void set_stream_params(const StreamType &type, bool enable)
