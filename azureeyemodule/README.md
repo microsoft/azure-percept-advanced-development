@@ -819,9 +819,13 @@ We can also use a UVC camera as input source.
 A generic UVC camera that outputs raw format (like RGB and YUV) is supported.
 Validated on Logitech B525 HD, 720P, 30 fps.
 
-1. Build the dockerfile and pull it as you did which was mentioned in earlier sections.
-1. Plug in your UVC camera. In SSH, run command *sudo ls /dev/video**. You should see at least one device (maybe 2 or even more). By default it should be video0.
-1. Now run the Docker container like this:
+1. Get the docker image. You can use either step 1a or 1b to get a proper docker image.
+   
+  1a. Run *docker pull mcr.microsoft.com/azureedgedevices/azureeyemodule:2108-1*. As of Sep 2 2021 this is the latest one.
+  
+  1b. Build the dockerfile and pull it as you did which was mentioned in earlier sections.
+2. Plug in your UVC camera. In SSH, run command *sudo ls /dev/video**. You should see at least one device (maybe 2 or even more). By default it should be video0.
+3. Now run the Docker container like this:
     ```
     docker run --rm \
                -v /dev/bus/usb:/dev/bus/usb \
@@ -836,7 +840,7 @@ Validated on Logitech B525 HD, 720P, 30 fps.
     * --device=/dev/video0 allows the container to access your uvc camera video0.
     * --input=uvc is the parameter for inference app which will then use uvc camera as input source.
     * --fps=30 specifies the input fps from the uvc camera.
-1. Once it's started, you will see the inference results and the video stream with overlay bounding boxes and labels.
+4. Once it's started, you will see the inference results and the video stream with overlay bounding boxes and labels.
 
 ---
 **NOTE**
