@@ -126,7 +126,7 @@ bool ObjectDetector::pull_data_uvc_video(cv::GStreamingCompiled &pipeline)
     {
         //Generic UVC camera doesn't provide H264 stream so we don't handle h264 output here
         this->handle_inference_output(out_ts, out_seqno, out_boxes, out_labels, out_confidences, out_size, last_boxes, last_labels, last_confidences);
-        //Intel doesn't provide frame timestamp for UVC camera input so we use the timestamp of inference results object here, 
+        //Intel doesn't provide frame timestamp for UVC camera input so we use the timestamp of inference results object here,
         //which is identical to the frame timestamp
         this->handle_bgr_output(out_bgr, out_ts, last_bgr, last_boxes, last_labels, last_confidences);
 
