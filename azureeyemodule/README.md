@@ -813,18 +813,20 @@ bool ObjectDetector::pull_data(cv::GStreamingCompiled &pipeline)
 
 ### Using UVC(USB Video Class) camera as input source
 
-Be default, the Azure Percept's Camera attached to Eye SoM is used as input source.
+By default, the Azure Percept's Camera attached to Eye SoM is used as input source.
 
 We can also use a UVC camera as input source. 
 
 A generic UVC camera that outputs raw format (like RGB and YUV) is supported.
 Validated on Logitech B525 HD, 720P, 30 fps.
 
-1. Get the docker image. You can use either step 1a or 1b to get a proper docker image.
+1. Get the docker image. You can use either step 1a, 1b or 1c to get a proper docker image.
 
-  1a. 1a. To download the azureeyemodule update, go to Azure Percept Studio, select Devices from the left navigation pane, Click on the specific device and then select Vision tab to initiate container download.
-  1b. Run *docker pull mcr.microsoft.com/azureedgedevices/azureeyemodule:2108-1*. As of Sep 2 2021 this is the latest one.
-  1c. Build the dockerfile and pull it as you did which was mentioned in earlier sections.
+  1a. To download the azureeyemodule update, go to Azure Percept Studio, select Devices from the left navigation pane, Click on the specific device and then select Vision tab to initiate container download.
+  
+  1b. Run *docker pull mcr.microsoft.com/azureedgedevices/azureeyemodule:2108-1*.
+  
+  1c. Build the dockerfile and pull it as mentioned in earlier sections.
   
 1. Plug in your UVC camera. In SSH, run command *sudo ls /dev/video**. You should see at least one device (maybe 2 or even more). By default it should be video0.
 1. Now run the Docker container like this:
