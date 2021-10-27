@@ -838,7 +838,7 @@ Validated on Logitech B525 HD, 720P, 30 fps.
                --device-cgroup-rule='c 189:* rmw' \
                -p 8554:8554 \
                <the docker image you just built> \
-               /app/inference --input=uvc --fps=30
+               /app/inference --input=uvc --fps=30 --name=azureeyemodule --network=azure-iot-edge
     ``` 
     where 
     * --device=/dev/video0 allows the container to access your uvc camera video0.
