@@ -301,7 +301,8 @@ static void need_data_callback(GstElement *appsrc, guint unused, StreamParameter
     // Feed out the buffer
     cv::Mat frame = get_frame(params->name);
     guint size = frame.size().width * frame.size().height * frame.channels();
-    GstBuffer *buffer = gst_buffer_new_wrapped_full(GST_MEMORY_FLAG_READONLY, frame.data, size, 0, size, nullptr, nullptr);
+    GstBuffer *buffer = gst_buffer_new_allocate(nullptr, size, nullptr);
+    gst_buffer_fill(buffer, 0, frame.data, size);
 
     // Increment the timestamp.
     GST_BUFFER_PTS(buffer) = params->timestamp;
