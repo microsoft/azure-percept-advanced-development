@@ -82,4 +82,13 @@ RUN cd /app && \
     rm -rf /app/*.h* && \
     rm -rf /app/*.txt
 
+ARG USERNAME=apdk_app \
+    UID=5001 \
+    GROUPNAME=apdk_accessories \
+    GID=5000 
+RUN groupadd -g $GID $GROUPNAME && \
+    useradd -m -u $UID -s /bin/bash $USERNAME && usermod -G $GROUPNAME -a $USERNAME && \
+    chown -R $USERNAME: /app/
+USER $USERNAME
+
 CMD ["/bin/bash", "-c", "./app/inference"]
