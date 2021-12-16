@@ -1,0 +1,198 @@
+{
+  "modulesContent": {
+	"$edgeAgent": {
+	  "properties.desired": {
+		"modules": {
+		  "WebStreamModule": {
+			"settings": {
+			  "image": "mcr.microsoft.com/azureedgedevices/webstreammodule:2109-1",
+			  "createOptions": "{\"ExposedPorts\":{\"2999/tcp\":{},\"3000/tcp\":{},\"3002/tcp\":{},\"3004/tcp\":{},\"3006/tcp\":{},\"3008/tcp\":{},\"3010/tcp\":{}},\"HostConfig\":{\"PortBindings\":{\"2999/tcp\":[{\"HostPort\":\"2999\"}],\"3000/tcp\":[{\"HostPort\":\"3000\"}],\"3002/tcp\":[{\"HostPort\":\"3002\"}],\"3004/tcp\":[{\"HostPort\":\"3004\"}],\"3006/tcp\":[{\"HostPort\":\"3006\"}],\"3008/tcp\":[{\"HostPort\":\"3008\"}],\"3010/tcp\":[{\"HostPort\":\"3010\"}]}}}"
+			},
+			"type": "docker",
+			"version": "1.0",
+			"env": {
+			  "RTSP_IP": {
+				"value": "azureeyemodule"
+			  },
+			  "RTSP_PORT": {
+				"value": "8554"
+			  },
+			  "RTSP_PATH": {
+				"value": "result"
+			  }
+			},
+			"status": "running",
+			"restartPolicy": "always"
+		  },
+		  "devmmclientmodule": {
+			"settings": {
+			  "image": "mcr.microsoft.com/azureedgedevices/devmmclientmodule:preload-devkit",
+			  "createOptions": "{\"HostConfig\":{\"Privileged\":true,\"Binds\":[\"/dev:/dev\"]}}"
+			},
+			"type": "docker",
+			"version": "1.0",
+			"status": "running",
+			"restartPolicy": "always"
+		  },
+		  "azureearspeechclientmodule": {
+			"settings": {
+			  "image": "mcr.microsoft.com/azureedgedevices/azureearspeechclientmodule:latest",
+			  "createOptions": "{\"HostConfig\":{\"CapDrop\": [\"ALL\"],\"SecurityOpt\": [\"no-new-privileges\"],\"Binds\":[\"/dev/bus/usb:/dev/bus/usb\", \"/dev/snd:/dev/snd\"],\"DeviceCgroupRules\": [\"c 189:* rmw\", \"c 116:* rmw\"]}}"
+			},
+			"type": "docker",
+			"version": "1.0.0",
+			"status": "running",
+			"restartPolicy": "always"
+		  },
+		  "azureeyemodule": {
+			"settings": {
+			  "image": "mcr.microsoft.com/azureedgedevices/azureeyemodule:2112-1",
+			  "createOptions": "{\"ExposedPorts\":{\"8554/tcp\":{}},\"HostConfig\":{\"Binds\":[\"/dev/bus/usb:/dev/bus/usb\"],\"DeviceCgroupRules\":[\"c 189:* rmw\"],\"PortBindings\":{\"8554/tcp\":[{\"HostPort\":\"8554\"}]}}}"
+			},
+			"type": "docker",
+			"version": "1.0",
+			"status": "running",
+			"restartPolicy": "always",
+			"env": {
+			  "AZURE_CLIENT_ID": {
+				"value": ""
+			  },
+			  "AZURE_CLIENT_SECRET": {
+				"value": ""
+			  },
+			  "AZURE_TENANT_ID": {
+				"value": ""
+			  },
+			  "CONFIDENCE_THRESHOLD": {
+				"value": ""
+			  }
+			}
+		  },
+		  "HostIpModule": {
+			"settings": {
+				"image": "mcr.microsoft.com/azureedgedevices/hostipmodule:latest-arm64v8",
+				"createOptions": "{\"NetworkingConfig\":{\"EndpointsConfig\":{\"host\":{}}},\"HostConfig\":{\"NetworkMode\":\"host\"}}"
+			},
+			"type": "docker",
+			"version": "1.0",
+			"status": "running",
+			"restartPolicy": "always"
+			},
+		  "ImageCapturingModule": {
+			"settings": {
+			  "image": "mcr.microsoft.com/azureedgedevices/imagecapturingmodule:latest-arm64v8",
+			  "createOptions": "{}"
+			},
+			"type": "docker",
+			"version": "1.0",
+			"status": "running",
+			"restartPolicy": "always",
+			"env": {
+			  "RTSP_IP": {
+				"value": "azureeyemodule"
+			  },
+			  "RTSP_PORT": {
+				"value": "8554"
+			  },
+			  "RTSP_PATH": {
+				"value": "raw"
+			  }
+			}
+		  }
+		},
+		"runtime": {
+		  "settings": {
+			"minDockerVersion": "v1.25"
+		  },
+		  "type": "docker"
+		},
+		"schemaVersion": "1.1",
+		"systemModules": {
+		  "edgeAgent": {
+			"settings": {
+			  "image": "mcr.microsoft.com/azureiotedge-agent:1.2",
+			  "createOptions": "{}"
+			},
+			"type": "docker",
+			"env": {
+			  "BackupConfigFilePath": {
+				"value": "/tmp/edgeAgent/backup.json"
+			  }
+			}
+		  },
+		  "edgeHub": {
+			"settings": {
+			  "image": "mcr.microsoft.com/azureiotedge-hub:1.2",
+			  "createOptions": "{\"HostConfig\":{\"PortBindings\":{\"5671/tcp\":[{\"HostPort\":\"5671\"}],\"8883/tcp\":[{\"HostPort\":\"8883\"}]}}}"
+			},
+			"type": "docker",
+			"env": {
+			  "OptimizeForPerformance": {
+				"value": "False"
+			  },
+			  "mqttSettings__ThreadCount": {
+				"value": "4"
+			  },
+			  "SslProtocols": {
+				"value": "tls1.2"
+			  }
+			},
+			"status": "running",
+			"restartPolicy": "always"
+		  }
+		}
+	  }
+	},
+	"$edgeHub": {
+	  "properties.desired": {
+		"routes": {
+		  "AzureEyeModuleToIoTHub": "FROM /messages/modules/azureeyemodule/outputs/* INTO $upstream",
+		  "AzureSpeechToIoTHub": "FROM /messages/modules/azureearspeechclientmodule/outputs/* INTO $upstream"
+		},
+		"schemaVersion": "1.1",
+		"storeAndForwardConfiguration": {
+		  "timeToLiveSecs": 7200
+		}
+	  }
+	},
+	"WebStreamModule": {
+	  "properties.desired": {}
+	},
+	"devmmclientmodule": {
+	  "properties.desired": {}
+	},
+	"azureearspeechclientmodule": {
+	  "properties.desired": {
+		"speechConfigs": {
+		  "appId": "",
+		  "key": "",
+		  "region": "",
+		  "keywordModelUrl": "https://aedspeechscenarios.blob.core.windows.net/keyword-tables/computer.table",
+		  "keyword": "computer",
+		  "skillType": "xxx",
+		  "speechLogFile": "speech.log"
+		},
+		"deviceConfigs": {
+		  "volume": 45,
+		  "enableSendAppLog": false
+		}
+	  }
+	},
+	"azureeyemodule": {
+	  "properties.desired": {
+		"Logging": true,
+		"ModelZipUrl": "",
+		"RawStream": true,
+		"ResultStream": true,
+		"Running": true,
+		"TelemetryIntervalNeuralNetworkMs": 60000
+	  }
+	},
+	"ImageCapturingModule": {
+	  "properties.desired": {}
+	},
+	"HostIpModule": {
+	  "properties.desired": {}
+	}
+	}
+}
