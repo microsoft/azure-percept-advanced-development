@@ -82,6 +82,9 @@ RUN cd /app && \
     rm -rf /app/*.h* && \
     rm -rf /app/*.txt
 
+# Overwrite old firmware with test one from Intel
+COPY mx.mvcmd /eyesom/mx.mvcmd
+
 ARG USERNAME=apdk_app \
     UID=5001 \
     GROUPNAME=apdk_accessories \
