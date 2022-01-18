@@ -7,7 +7,7 @@
 
 #FROM mcr.microsoft.com/azureedgedevices/azureeyebase:latest-arm64v8
 # Test reverting the heartbeat changes in base image
-FROM azureeyebase-xc:af7c75b1
+FROM azureeyebase-xc:470587b6
 
 ARG ARCH=aarch64
 
