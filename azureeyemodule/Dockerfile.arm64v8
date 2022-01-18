@@ -5,7 +5,9 @@
 
 # docker build -t azureeyemodule -f Dockerfile.arm64v8 .
 
-FROM mcr.microsoft.com/azureedgedevices/azureeyebase:latest-arm64v8
+#FROM mcr.microsoft.com/azureedgedevices/azureeyebase:latest-arm64v8
+# Test reverting the heartbeat changes in base image
+FROM azureeyebase-xc:af7c75b1
 
 ARG ARCH=aarch64
 
@@ -83,7 +85,7 @@ RUN cd /app && \
     rm -rf /app/*.txt
 
 # Overwrite old firmware with test one from Intel
-COPY mx.mvcmd /eyesom/mx.mvcmd
+#COPY mx.mvcmd /eyesom/mx.mvcmd
 
 ARG USERNAME=apdk_app \
     UID=5001 \
