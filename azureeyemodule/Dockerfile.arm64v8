@@ -7,7 +7,7 @@
 
 #FROM mcr.microsoft.com/azureedgedevices/azureeyebase:latest-arm64v8
 # Test latest intel drop (December)
-FROM azureeyebase-arm64v8:b1e822c6e
+FROM azureeyebase-arm64v8:b6a74a299
 
 ARG ARCH=aarch64
 
