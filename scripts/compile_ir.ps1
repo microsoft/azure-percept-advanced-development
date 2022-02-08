@@ -57,6 +57,6 @@ $dockercmd += "-ip U8 "
 $dockercmd += "-op FP32"
 
 $tmppath = $(Resolve-Path tmp).Path
-$docker_run_cmd = "docker run --privileged --rm -v ${tmppath}:/home/openvino/tmp -w /home/openvino/tmp  openvino/ubuntu18_dev:2021.1 /bin/bash -c `"$dockercmd`""
+$docker_run_cmd = "docker run --privileged --rm -v ${tmppath}:/home/openvino/tmp -w /home/openvino/tmp  openvino/ubuntu18_dev:2021.4 /bin/bash -c `"$dockercmd`""
 Write-Host ${docker_run_cmd}
 Invoke-Expression "& $docker_run_cmd"

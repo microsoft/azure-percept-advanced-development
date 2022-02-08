@@ -6,8 +6,8 @@
 # docker build -t azureeyemodule -f Dockerfile.arm64v8 .
 
 #FROM mcr.microsoft.com/azureedgedevices/azureeyebase:latest-arm64v8
-# Test reverting the heartbeat changes in base image
-FROM azureeyebase-xc:e8ef58be
+# Test latest intel drop (December)
+FROM azureeyebase-arm64v8:b1e822c6e
 
 ARG ARCH=aarch64
 
