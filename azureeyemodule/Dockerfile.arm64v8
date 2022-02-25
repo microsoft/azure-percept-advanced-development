@@ -24,6 +24,10 @@ RUN tdnf install -y build-essential cmake rpm && \
     tdnf install -y systemd-devel && \
     # dependency for AI model protect
     tdnf install -y openssl-devel && \
+    # dependency so we can install gstreamer stuff
+#    tdnf install -y ca-certificates && \
+#    # gstreamer dependencies
+#    tdnf install -y gstreamer1 gstreamer1-devel gstreamer1-plugins-base gstreamer1-plugins-base-devel gstreamer1-plugins-bad-free && \
     # Clean up
     tdnf clean all && \
     rm -rf /var/cache/tdnf

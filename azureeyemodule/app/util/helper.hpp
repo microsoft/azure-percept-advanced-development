@@ -29,6 +29,9 @@ bool file_exists(const std::string &filename);
 /** Log an error */
 void log_error(const std::string &str);
 
+/** Log a warning */
+void log_warning(const std::string &str);
+
 /** Log an info */
 void log_info(const std::string &str);
 

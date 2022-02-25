@@ -137,7 +137,7 @@ static void interrupt(int sig)
 }
 
 static void determine_model_type(const std::string &labelfile, const std::vector<std::string> &modelfiles, const std::string &mvcmd,
-                                 const std::string inputsource, const std::string &videofile, const model::parser::Parser &parser_type, 
+                                 const std::string inputsource, const std::string &videofile, const model::parser::Parser &parser_type,
                                  const cv::gapi::mx::Camera::Mode &resolution, bool quit_on_failure)
 {
     the_model = nullptr;
@@ -315,7 +315,7 @@ int main(int argc, char** argv)
     bool loaded = model::AzureEyeModel::load(labelfile, modelfiles, parser_type);
     if (!loaded)
     {
-        util::log_error("Could not load the desired type of model. Using a default one instead.");
+        util::log_warning("Could not load the desired type of model. Using a default one instead.");
         parser_type = model::parser::Parser::DEFAULT;
     }
 

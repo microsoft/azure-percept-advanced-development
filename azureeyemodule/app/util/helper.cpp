@@ -36,6 +36,12 @@ void log_error(const std::string &str)
     std::cout << std::put_time(std::localtime(&t), "%Y-%m-%d %X") << " ERROR: " << str << std::endl;
 }
 
+void log_warning(const std::string &str)
+{
+    time_t t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    std::cout << std::put_time(std::localtime(&t), "%Y-%m-%d %X") << " WARNING: " << str << std::endl;
+}
+
 void log_info(const std::string &str)
 {
     time_t t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
