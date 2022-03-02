@@ -221,7 +221,7 @@ bool AzureEyeModel::load(std::string &labelfile, const std::string &data, parser
     }
     else
     {
-        util::log_error("Unrecognized string format for model data. Given a URL or zip or XML or blob file of path: " + data);
+        util::log_warning("Unrecognized string format for model data. Given a URL or zip or XML or blob file of path: " + data);
         return false;
     }
 }

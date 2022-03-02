@@ -20,6 +20,8 @@
 // Local includes
 #include "helper.hpp"
 
+#define DEBUG_FOR_INTEL 1
+
 namespace util {
 
 static bool verbose_logging = false;
@@ -224,29 +226,54 @@ AdaptiveLogger::AdaptiveLogger()
 
 void AdaptiveLogger::log_info(const std::string &msg)
 {
+#if DEBUG_FOR_INTEL
+    util::log_info(msg);
+#else
     bool log_this_msg = this->adapt();
     if (log_this_msg)
     {
         util::log_info(msg);
     }
+#endif // DEBUG_FOR_INTEL
+}
+
+void AdaptiveLogger::log_warning(const std::string &msg)
+{
+#if DEBUG_FOR_INTEL
+    util::log_warning(msg);
+#else
+    bool log_this_msg = this->adapt();
+    if (log_this_msg)
+    {
+        util::log_warning(msg);
+    }
+#endif // DEBUG_FOR_INTEL
 }
 
 void AdaptiveLogger::log_error(const std::string &msg)
 {
+#if DEBUG_FOR_INTEL
+    util::log_error(msg);
+#else
     bool log_this_msg = this->adapt();
     if (log_this_msg)
     {
         util::log_error(msg);
     }
+#endif // DEBUG_FOR_INTEL
 }
 
 void AdaptiveLogger::log_debug(const std::string &msg)
 {
+#if DEBUG_FOR_INTEL
+    util::log_debug(msg);
+#else
     bool log_this_msg = this->adapt();
     if (log_this_msg)
     {
         util::log_debug(msg);
     }
+#endif // DEBUG_FOR_INTEL
 }
 
 bool AdaptiveLogger::adapt()

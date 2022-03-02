@@ -35,7 +35,7 @@ bool open_device(void)
 
     // Get all USB devices connected to the system
     libusb_device **devlist = nullptr;
-    size_t n_usb_items = libusb_get_device_list(nullptr, &libusb_device);
+    size_t n_usb_items = libusb_get_device_list(nullptr, &devlist);
     if (n_usb_items == 0)
     {
         util::log_error("No USB devices found.");
@@ -43,7 +43,7 @@ bool open_device(void)
     }
 
     // Check each connected USB device's VID and PID against the Eye SOM's
-    std::vector<size_it> matching_descriptors;
+    std::vector<size_t> matching_descriptors;
     for (size_t i = 0; i < n_usb_items; i++)
     {
         libusb_device *usb_device = devlist[i];
@@ -63,14 +63,14 @@ bool open_device(void)
 
     if (matching_descriptors.size() == 0)
     {
-        util::log_error("Found " + std::to_string(n_usb_items) + " connected USB devices, but none of them have VID " + util::to_hex_string(MX_VID) + " and PID " + util::to_hex_string(MX_PID));
+        util::log_warning("Found " + std::to_string(n_usb_items) + " connected USB devices, but none of them have VID 0x" + util::to_hex_string(MX_VID) + " and PID 0x" + util::to_hex_string(MX_PID));
         matching_descriptors.clear();
         libusb_free_device_list(devlist, (int)true);
         return false;
     }
     else if (matching_descriptors.size() > 1)
     {
-        util::log_error("Expecting to find only one, but found " + std::to_string(matching_descriptors.size()) + " descriptors with VID " + util::to_hex_string(MX_VID) + " and PID " + util::to_hex_string(MX_PID));
+        util::log_error("Expecting to find only one, but found " + std::to_string(matching_descriptors.size()) + " descriptors with VID 0x" + util::to_hex_string(MX_VID) + " and PID 0x" + util::to_hex_string(MX_PID));
         matching_descriptors.clear();
         libusb_free_device_list(devlist, (int)true);
         return false;
@@ -84,7 +84,7 @@ bool open_device(void)
 
     // Open the device (and free the list)
     libusb_device_handle *handle;
-    result = libusb_open(usb_device, &usb_device_handle);
+    result = libusb_open(usb_device, &handle);
     libusb_free_device_list(devlist, (int)true);
     if (result != LIBUSB_SUCCESS)
     {
@@ -110,7 +110,7 @@ bool open_device(void)
 
 void authenticate_device(void)
 {
-    util::log_info("starting validator with VID 0x" + util::to_hex_string(MCU_VID) + " PID 0x" + util::to_hex_string(mcu_pid));
+    util::log_info("starting validator with VID 0x" + util::to_hex_string(MCU_VID) + " PID 0x" + util::to_hex_string(MCU_PID));
     start_validator(MCU_VID, MCU_PID);
 
     // wait for authentication

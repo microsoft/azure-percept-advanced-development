@@ -96,6 +96,9 @@ public:
     /** Log at ERROR level. May or may not actually log, depending on the frequency with which you are calling this method with this exact log message. */
     void log_error(const std::string &msg);
 
+    /** Log at WARNING level. May or may not actually log, depending on the frequency with which you are calling this method with this exact log message. */
+    void log_warning(const std::string &msg);
+
     /** Log at DEBUG level. May or may not actually log, depending on the frequency with which you are calling this method with this exact log message. */
     void log_debug(const std::string &msg);
 
