@@ -78,7 +78,7 @@ void SSDModel::run(cv::GStreamingCompiled *pipeline)
         this->log_parameters();
         bool ran_out_naturally;
 
-        if ((this->inputsource == "uvc") || (this->inputsource.rfind(this->VIDEO_PREFIX, 0) == 0)) 
+        if ((this->inputsource == "uvc") || (this->inputsource.rfind(this->VIDEO_PREFIX, 0) == 0))
         {
             // Build the camera pipeline with G-API
             *pipeline = this->compile_cv_graph_uvc_video();
@@ -87,8 +87,8 @@ void SSDModel::run(cv::GStreamingCompiled *pipeline)
 
             // Pull data through the pipeline
             ran_out_naturally = this->pull_data_uvc_video(*pipeline);
-        } 
-        else 
+        }
+        else
         {
             // Build the camera pipeline with G-API
             *pipeline = this->compile_cv_graph();
@@ -99,7 +99,7 @@ void SSDModel::run(cv::GStreamingCompiled *pipeline)
             ran_out_naturally = this->pull_data(*pipeline);
 
         }
-        
+
         if (!ran_out_naturally)
         {
             break;
@@ -158,7 +158,7 @@ cv::GStreamingCompiled SSDModel::compile_cv_graph() const
     auto kernels = cv::gapi::combine(cv::gapi::mx::kernels(), cv::gapi::kernels<cv::gapi::streaming::GOCVParseSSDWithConf>());
 
     // Compile the graph in streamnig mode; set all the parameters; feed the firmware file into the VPU.
-    auto pipeline = graph.compileStreaming(cv::gapi::mx::Camera::params(), cv::compile_args(networks, kernels, cv::gapi::mx::mvcmdFile{ this->mvcmd }));
+    auto pipeline = graph.compileStreaming(cv::gapi::mx::Camera::params(), cv::compile_args(networks, kernels, cv::gapi::mx::mvcmdFile{ this->mvcmd }, cv::gapi::streaming::queue_capacity{1}));
 
     // Specify the Percept DK's camera as the input to the pipeline.
     pipeline.setSource(cv::gapi::wip::make_src<cv::gapi::mx::Camera>());
@@ -200,7 +200,7 @@ cv::GStreamingCompiled SSDModel::compile_cv_graph_uvc_video() const
     auto pipeline = graph.compileStreaming(cv::compile_args(networks, kernels, cv::gapi::mx::mvcmdFile{ this->mvcmd }));
 
     //if find VIDEO_PREFIX from inputsource, continue with a video file
-    if (this->inputsource.rfind(this->VIDEO_PREFIX, 0) == 0) 
+    if (this->inputsource.rfind(this->VIDEO_PREFIX, 0) == 0)
     {
         std::string video_file_path = this->inputsource.substr(this->VIDEO_PREFIX.size(), this->inputsource.size());
         util::log_info("Input source is a video file with path: " + video_file_path);
@@ -209,9 +209,9 @@ cv::GStreamingCompiled SSDModel::compile_cv_graph_uvc_video() const
             util::log_error("The video file doesn't exist.");
         }
         pipeline.setSource<cv::gapi::wip::GCaptureSource>(video_file_path);
-    } 
+    }
     //else continue as uvc camera, video0 as default value
-    else 
+    else
     {
         util::log_info("Input source is a uvc camera (video0 as default value)");
         pipeline.setSource<cv::gapi::wip::GCaptureSource>(0);
