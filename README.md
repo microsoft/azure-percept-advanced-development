@@ -1,11 +1,7 @@
 # Azure Percept DK Advanced Development
 
-**Please note!** The experiences in this repository should be considered to be in **preview/beta**.
-Significant portions of these experiences are subject to change without warning. **No part of this code should be considered stable**.
-
-Please consider providing feedback
-via this [questionnaire](https://forms.office.com/Pages/ResponsePage.aspx?id=v4j5cvGGr0GRqy180BHbRzoJxrXKT0dEvfQyxsA0h8lUMzE0V0pCTFU4UUVSS0xTRUtNT0hZSEs1Ry4u).
-Your feedback will help us continue to fine-tune and improve the advanced tools experience.
+**Azure Percept DK and the associated Advanced Developer experience for the Percept DK will be retired March 30th, 2023**
+Click here to learn more: [Azure Percept DK Retirement Announcement | Azure updates | Microsoft Azure](https://azure.microsoft.com/en-us/updates/azure-percept-dk-retirement-announcement/)
 
 ## Releases
 
