@@ -1,6 +1,6 @@
 # Azure Percept DK Advanced Development
 
-**Azure Percept DK and the associated Advanced Developer experience for the Percept DK will be retired March 30th, 2023**
+**Azure Percept DK and the associated Advanced Developer experience for the Percept DK will be retired March 30th, 2023.**
 Click here to learn more: [Azure Percept DK Retirement Announcement | Azure updates | Microsoft Azure](https://azure.microsoft.com/en-us/updates/azure-percept-dk-retirement-announcement/)
 
 ## Releases
