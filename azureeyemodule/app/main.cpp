@@ -17,7 +17,9 @@
 
 // Local includes
 #include "device/device.hpp"
+#if !AUTH_FIX
 #include "device/validator.h"
+#endif // AUTH_FIX
 #include "imgcapture/dataloop.hpp"
 #include "iot/iot_interface.hpp"
 #include "iot/iot_update.hpp"
@@ -130,14 +132,16 @@ static void interrupt(int sig)
 {
     util::log_info("received interrupt signal");
 
+#if !AUTH_FIX
     stop_validator();
+#endif
     iot::msgs::stop_iot();
 
     exit(0);
 }
 
 static void determine_model_type(const std::string &labelfile, const std::vector<std::string> &modelfiles, const std::string &mvcmd,
-                                 const std::string inputsource, const std::string &videofile, const model::parser::Parser &parser_type, 
+                                 const std::string inputsource, const std::string &videofile, const model::parser::Parser &parser_type,
                                  const cv::gapi::mx::Camera::Mode &resolution, bool quit_on_failure)
 {
     the_model = nullptr;
@@ -324,10 +328,19 @@ int main(int argc, char** argv)
 
     // See if the device is already opened, if not, open it and authenticate
     bool opened_usb_device = device::open_device();
+#if AUTH_FIX
+    util::log_info("Skipping authentication.");
+    if (!opened_usb_device)
+    {
+        util::log_error("Could not open Eye device.");
+    }
+#else
+    util::log_info("Authenticating...");
     if (!opened_usb_device)
     {
         device::authenticate_device();
     }
+#endif // AUTH_FIX
 
     // Create RTSP thread
     auto stream_resolution = rtsp::resolution_string_to_enum(str_resolution);

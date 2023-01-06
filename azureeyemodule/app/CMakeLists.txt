@@ -39,6 +39,9 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DUSE_EDGE_MODULES")
 # Here's where the Azure IoT C SDK headers are
 set(AZUREIOT_INCLUDE_DIRS "/usr/local/include/azureiot")
 
+# Set the pound define for the auth fix
+add_compile_definitions(AUTH_FIX=${AUTH_FIX})
+
 # Slurp up all the .c* and .h* files for the application from the various locations
 file (GLOB MAIN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/*.c*)
 file (GLOB MAIN_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/*.h*)
